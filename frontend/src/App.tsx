@@ -4,6 +4,7 @@ import './index.css';
 import { useMidnight } from './hooks/useMidnight';
 import { useIndexer } from './hooks/useIndexer';
 import { useUserProfile } from './hooks/useUserProfile';
+import { useContractBridge } from './hooks/useContractBridge';
 import { WalletConnect } from './components/WalletConnect';
 import { DatasetExchange } from './components/DatasetExchange';
 import { AppLogo } from './components/AppLogo';
@@ -44,6 +45,7 @@ function App() {
       : null;
 
   const profileHook = useUserProfile(walletAddress);
+  const contractBridge = useContractBridge(walletApi, walletAddress);
 
   const handleSelectSection = (sec: NavSection) => {
     if (sec === 'profile' && !walletAddress) return;
@@ -246,8 +248,10 @@ function App() {
           contractAddress={indexer.contractAddress}
           walletAddress={walletAddress}
           profileHook={profileHook}
+          contractBridge={contractBridge}
           onRefresh={() => {
             indexer.refresh();
+            contractBridge.refreshProofServer();
             showToast('Marketplace updated');
           }}
           onAddListing={(listing) => {
@@ -315,11 +319,39 @@ function App() {
         }}
       >
         <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AppLogo size={20} />
-            <span>
-              <strong>Nocturne AI</strong> · Confidential AI Dataset DEX
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <AppLogo size={20} />
+              <span>
+                <strong>Nocturne AI</strong> · Confidential AI Dataset DEX
+              </span>
+            </div>
+
+            {/* Proof Server Status Badge */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontSize: '0.74rem',
+                padding: '0.2rem 0.6rem',
+                borderRadius: 'var(--radius-full)',
+                background: contractBridge.proofServerOnline ? 'rgba(48, 209, 88, 0.1)' : 'rgba(255, 159, 10, 0.1)',
+                border: `1px solid ${contractBridge.proofServerOnline ? 'rgba(48, 209, 88, 0.25)' : 'rgba(255, 159, 10, 0.25)'}`,
+                color: contractBridge.proofServerOnline ? 'var(--accent-emerald)' : 'var(--accent-amber)',
+              }}
+              title={contractBridge.proofServerOnline ? 'Proof server connected' : 'Proof server offline — local cryptographic fallback active'}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: contractBridge.proofServerOnline ? 'var(--accent-emerald)' : 'var(--accent-amber)',
+                }}
+              />
+              <span>Proof Server: {contractBridge.proofServerOnline ? 'Online' : 'Offline (Local Anchor Mode)'}</span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
