@@ -45,52 +45,50 @@ export function ConfirmModal({
   const isWarning = variant === 'warning';
 
   const badgeBg = isDanger
-    ? 'rgba(251, 113, 133, 0.15)'
+    ? 'rgba(255, 69, 58, 0.12)'
     : isWarning
-    ? 'rgba(245, 158, 11, 0.15)'
-    : 'rgba(250, 240, 202, 0.15)';
+    ? 'rgba(245, 166, 35, 0.12)'
+    : 'rgba(255, 255, 255, 0.08)';
 
   const badgeColor = isDanger
-    ? '#fda4af'
+    ? 'var(--accent-rose, #ff6961)'
     : isWarning
-    ? '#fbbf24'
-    : '#FAF0CA';
+    ? 'var(--accent-amber, #f5a623)'
+    : 'var(--text-main, #ffffff)';
 
   const badgeBorder = isDanger
-    ? '1px solid rgba(251, 113, 133, 0.35)'
+    ? '1px solid rgba(255, 69, 58, 0.3)'
     : isWarning
-    ? '1px solid rgba(245, 158, 11, 0.35)'
-    : '1px solid rgba(250, 240, 202, 0.35)';
+    ? '1px solid rgba(245, 166, 35, 0.3)'
+    : '1px solid rgba(255, 255, 255, 0.15)';
 
   return (
     <div
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(4, 18, 32, 0.88)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1200,
         padding: '1.5rem',
-        animation: 'modalFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
       onClick={onCancel}
     >
       <div
         className="card"
         style={{
-          maxWidth: 460,
+          maxWidth: 440,
           width: '100%',
           padding: '1.75rem',
-          background: 'rgba(10, 43, 74, 0.98)',
-          border: isDanger ? '1px solid rgba(251, 113, 133, 0.35)' : '1px solid rgba(250, 240, 202, 0.28)',
+          background: 'var(--bg-modal, #0d0f17)',
+          border: isDanger ? '1px solid rgba(255, 69, 58, 0.35)' : '1px solid var(--border-glass)',
           boxShadow: isDanger
-            ? '0 24px 64px rgba(4, 18, 32, 0.95), 0 0 32px rgba(251, 113, 133, 0.15)'
-            : '0 24px 64px rgba(4, 18, 32, 0.95), 0 0 32px rgba(13, 59, 102, 0.8)',
-          animation: 'modalScaleIn 0.22s cubic-bezier(0.16, 1, 0.3, 1)',
+            ? 'var(--shadow-modal, 0 24px 60px rgba(0, 0, 0, 0.9)), 0 0 24px rgba(255, 69, 58, 0.15)'
+            : 'var(--shadow-modal, 0 24px 60px rgba(0, 0, 0, 0.9))',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -98,9 +96,9 @@ export function ConfirmModal({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div
               style={{
-                width: 40,
-                height: 40,
-                borderRadius: '12px',
+                width: 38,
+                height: 38,
+                borderRadius: 'var(--radius-sm, 8px)',
                 background: badgeBg,
                 border: badgeBorder,
                 display: 'flex',
@@ -113,36 +111,36 @@ export function ConfirmModal({
               {confirmIcon ? (
                 confirmIcon
               ) : isDanger ? (
-                <Trash2 size={20} />
+                <Trash2 size={18} />
               ) : isWarning ? (
-                <AlertTriangle size={20} />
+                <AlertTriangle size={18} />
               ) : (
-                <Info size={20} />
+                <Info size={18} />
               )}
             </div>
             <div>
-              <h3 style={{ margin: 0, color: '#FAF0CA', fontSize: '1.15rem', fontWeight: 700 }}>{title}</h3>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 600 }}>{title}</h3>
             </div>
           </div>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={onCancel}
-            style={{ padding: '0.35rem', color: 'var(--text-muted)' }}
+            style={{ padding: '0.35rem', color: 'var(--text-subtle)' }}
             aria-label="Close"
           >
             <X size={16} />
           </button>
         </div>
 
-        <div style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: '1.5' }}>
+        <div style={{ marginBottom: '1.5rem', color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: '1.5' }}>
           {message ? (
             message
           ) : itemName ? (
             <div>
-              Are you sure you want to remove <strong style={{ color: '#FAF0CA' }}>"{itemName}"</strong>?
-              <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: 'var(--text-subtle)' }}>
-                This action will permanently unlist this dataset from the marketplace.
+              Are you sure you want to remove <strong style={{ color: 'var(--text-main)' }}>"{itemName}"</strong>?
+              <div style={{ marginTop: '0.4rem', fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+                This action will permanently remove this dataset listing.
               </div>
             </div>
           ) : (
@@ -150,56 +148,21 @@ export function ConfirmModal({
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={onCancel}
-            style={{ padding: '0.55rem 1.1rem' }}
           >
             {cancelText}
           </button>
           <button
             type="button"
-            className="btn btn-sm"
+            className={`btn btn-sm ${isDanger ? 'btn-danger' : isWarning ? 'btn-amber' : 'btn-primary'}`}
             onClick={onConfirm}
-            style={
-              isDanger
-                ? {
-                    background: 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(251, 113, 133, 0.4)',
-                    boxShadow: '0 4px 16px rgba(225, 29, 72, 0.4)',
-                    padding: '0.55rem 1.1rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }
-                : isWarning
-                ? {
-                    background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
-                    color: '#ffffff',
-                    border: '1px solid rgba(245, 158, 11, 0.4)',
-                    boxShadow: '0 4px 16px rgba(217, 119, 6, 0.4)',
-                    padding: '0.55rem 1.1rem',
-                    fontWeight: 600,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }
-                : {
-                    background: '#FAF0CA',
-                    color: '#0D3B66',
-                    padding: '0.55rem 1.1rem',
-                    fontWeight: 700,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                  }
-            }
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
           >
-            {confirmIcon ? confirmIcon : isDanger ? <Trash2 size={14} /> : null}
+            {confirmIcon ? confirmIcon : isDanger ? <Trash2 size={13} /> : null}
             <span>{confirmText}</span>
           </button>
         </div>
