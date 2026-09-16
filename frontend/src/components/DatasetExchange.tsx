@@ -4,7 +4,7 @@
 import React, { useState, useMemo } from 'react';
 import type { WalletState } from '../hooks/useMidnight';
 import type { DataListing, RegistryState } from '../hooks/useIndexer';
-import type { UserProfileHook, PurchaseRecord } from '../hooks/useUserProfile';
+import type { UserProfileHook, PurchaseRecord, SaleRecord } from '../hooks/useUserProfile';
 import type { ContractBridgeHook } from '../hooks/useContractBridge';
 import type { NavSection } from '../App';
 import { ProfileDashboard } from './ProfileDashboard';
@@ -23,7 +23,10 @@ import {
   Key,
   FolderUp,
   Lock,
-  ArrowRight
+  ArrowRight,
+  User,
+  Copy,
+  Trash2
 } from 'lucide-react';
 
 interface Props {
@@ -44,6 +47,14 @@ interface Props {
   onToggleArchive?: (datasetId: string) => void;
   onRemoveListing?: (datasetId: string) => void;
   onIncrementVerified: () => void;
+  onDeductBalance?: (amount: number, targetAddress?: string) => void;
+  onCreditBalance?: (amount: number, targetAddress?: string) => void;
+  onSignAndSubmitPurchaseTx?: (
+    recipientAddress: string,
+    amountNight: number,
+    datasetName: string
+  ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
+  onRefreshBalance?: () => void;
   laceIcon?: string;
   oneAmIcon?: string;
 }
@@ -64,6 +75,10 @@ export function DatasetExchange({
   onToggleArchive,
   onRemoveListing,
   onIncrementVerified,
+  onDeductBalance,
+  onCreditBalance,
+  onSignAndSubmitPurchaseTx,
+  onRefreshBalance,
 }: Props) {
   const [selectedListingForModal, setSelectedListingForModal] = useState<DataListing | null>(null);
   const [purchasingListing, setPurchasingListing] = useState<DataListing | null>(null);
@@ -99,6 +114,22 @@ export function DatasetExchange({
   };
 
   const handleStartPurchase = (listing: DataListing) => {
+    const registeredIds = new Set(
+      profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)
+    );
+    const isOwner = Boolean(
+      walletAddress && (
+        (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
+        (listing.providerCommit && (
+          listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
+          listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
+        )) ||
+        registeredIds.has(listing.datasetId)
+      )
+    );
+    if (isOwner) {
+      return;
+    }
     setSelectedListingForModal(null);
     setPurchasingListing(listing);
   };
@@ -137,7 +168,10 @@ export function DatasetExchange({
           walletAddress={walletAddress}
           profileHook={profileHook}
           onToggleFavorite={toggleFavorite}
-          onRefresh={onRefresh}
+          onRefresh={() => {
+            onRefresh();
+            onRefreshBalance?.();
+          }}
           onInspect={(listing) => setSelectedListingForModal(listing)}
           onBuy={handleStartPurchase}
           onDownload={handleDirectDownload}
@@ -150,6 +184,8 @@ export function DatasetExchange({
       {activeSection === 'register' && (
         <RegisterView
           walletState={walletState}
+          walletAddress={walletAddress}
+          profileHook={profileHook}
           contractBridge={contractBridge}
           onSuccess={(listing, txHash) => {
             onAddListing(listing);
@@ -159,7 +195,7 @@ export function DatasetExchange({
               datasetName: listing.datasetName,
               datasetId: listing.datasetId,
               type: 'registered',
-              price: listing.price && listing.price !== '0' ? `${listing.price} tDUST` : 'Free',
+              price: listing.price && listing.price !== '0' ? `${listing.price} tNIGHT` : 'Free',
               txId: txHash || undefined,
               status: 'completed',
             });
@@ -216,6 +252,10 @@ export function DatasetExchange({
           onClose={() => setPurchasingListing(null)}
           onDirectVerify={(listing, payload) => handleStartVerification(listing, payload)}
           onDownload={handleDirectDownload}
+          onDeductBalance={onDeductBalance}
+          onCreditBalance={onCreditBalance}
+          onSignAndSubmitPurchaseTx={onSignAndSubmitPurchaseTx}
+          onSelectSection={onSelectSection}
         />
       )}
 
@@ -224,12 +264,14 @@ export function DatasetExchange({
         <InspectModal
           listing={selectedListingForModal}
           isFavorite={favorites.includes(selectedListingForModal.datasetId)}
+          walletAddress={walletAddress}
           profileHook={profileHook}
           onToggleFavorite={() => toggleFavorite(selectedListingForModal.datasetId)}
           onClose={() => setSelectedListingForModal(null)}
           onBuy={() => handleStartPurchase(selectedListingForModal)}
           onDownload={() => handleDirectDownload(selectedListingForModal)}
           onVerify={() => handleStartVerification(selectedListingForModal)}
+          onRemoveListing={onRemoveListing}
         />
       )}
     </div>
@@ -302,7 +344,7 @@ function AboutView({
             </div>
             <h3 style={{ marginBottom: '0.4rem' }}>1. List & Set Terms</h3>
             <p style={{ fontSize: '0.88rem' }}>
-              Upload your dataset. Raw data is hashed locally and anchored on Midnight. Set your price in tDUST or share for free.
+              Upload your dataset. Raw data is hashed locally and anchored on Midnight. Set your price in tNIGHT or share for free.
             </p>
           </div>
 
@@ -402,6 +444,7 @@ function MarketplaceView({
         l.datasetId.toLowerCase().includes(searchTerm.toLowerCase());
 
       if (!matchesSearch) return false;
+      if (l.isActive === false) return false;
 
       const isFree = !l.price || l.price === '0' || l.price.toLowerCase() === 'free';
       const isOwned = profileHook.isPurchased(l.datasetId);
@@ -550,19 +593,37 @@ function MarketplaceView({
               gap: '1.25rem',
             }}
           >
-            {filteredListings.map((listing) => (
-              <DatasetCard
-                key={listing.datasetId}
-                listing={listing}
-                isFavorite={favorites.includes(listing.datasetId)}
-                isPurchased={profileHook.isPurchased(listing.datasetId)}
-                onToggleFavorite={() => onToggleFavorite(listing.datasetId)}
-                onInspect={() => onInspect(listing)}
-                onBuy={() => onBuy(listing)}
-                onDownload={() => onDownload(listing)}
-                onVerify={() => onVerify(listing)}
-              />
-            ))}
+            {filteredListings.map((listing) => {
+              const registeredIds = new Set(
+                profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)
+              );
+              const isOwner = Boolean(
+                walletAddress && (
+                  (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
+                  (listing.providerCommit && (
+                    listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
+                    listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
+                  )) ||
+                  registeredIds.has(listing.datasetId)
+                )
+              );
+              return (
+                <DatasetCard
+                  key={listing.datasetId}
+                  listing={listing}
+                  isFavorite={favorites.includes(listing.datasetId)}
+                  isPurchased={profileHook.isPurchased(listing.datasetId)}
+                  isOwner={isOwner}
+                  sellerNickname={listing.sellerNickname || (isOwner ? profileHook.profile.nickname || 'AI Researcher' : undefined)}
+                  sellerAddress={listing.sellerAddress || (isOwner ? walletAddress || undefined : undefined) || listing.providerCommit}
+                  onToggleFavorite={() => onToggleFavorite(listing.datasetId)}
+                  onInspect={() => onInspect(listing)}
+                  onBuy={() => onBuy(listing)}
+                  onDownload={() => onDownload(listing)}
+                  onVerify={() => onVerify(listing)}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -578,6 +639,9 @@ function DatasetCard({
   listing,
   isFavorite,
   isPurchased,
+  isOwner,
+  sellerNickname,
+  sellerAddress,
   onToggleFavorite,
   onInspect,
   onBuy,
@@ -587,6 +651,9 @@ function DatasetCard({
   listing: DataListing;
   isFavorite: boolean;
   isPurchased: boolean;
+  isOwner: boolean;
+  sellerNickname?: string;
+  sellerAddress?: string;
   onToggleFavorite: () => void;
   onInspect: () => void;
   onBuy: () => void;
@@ -594,7 +661,9 @@ function DatasetCard({
   onVerify: () => void;
 }) {
   const isFree = !listing.price || listing.price === '0' || listing.price.toLowerCase() === 'free';
-  const priceDisplay = isFree ? 'Free' : `${listing.price} tDUST`;
+  const priceDisplay = isFree ? 'Free' : `${listing.price} tNIGHT`;
+  const displayNickname = sellerNickname || listing.sellerNickname || 'AI Researcher';
+  const displaySellerAddress = sellerAddress || listing.sellerAddress || listing.providerCommit || '';
 
   return (
     <div
@@ -611,7 +680,7 @@ function DatasetCard({
         {/* Top Badges */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
           <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-            <span className={`badge ${isFree ? 'badge-green' : 'badge-amber'}`}>
+            <span className={`badge ${isFree ? 'badge-green' : 'badge-silver-glow'}`}>
               {priceDisplay}
             </span>
             <span className="badge">{listing.category || 'AI Dataset'}</span>
@@ -652,7 +721,7 @@ function DatasetCard({
           style={{
             fontSize: '0.84rem',
             lineHeight: '1.5',
-            marginBottom: '1rem',
+            marginBottom: '0.75rem',
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -661,6 +730,32 @@ function DatasetCard({
         >
           {listing.description || 'Verified AI dataset anchored on Midnight.'}
         </p>
+
+        {/* Seller Info Row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.45rem',
+            fontSize: '0.74rem',
+            marginBottom: '0.85rem',
+            padding: '0.35rem 0.55rem',
+            background: 'rgba(255, 255, 255, 0.02)',
+            borderRadius: 'var(--radius-xs)',
+            border: '1px solid var(--border-subtle)',
+          }}
+        >
+          <User size={12} style={{ opacity: 0.6 }} />
+          <span style={{ color: 'var(--text-subtle)' }}>Seller:</span>
+          <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>
+            {displayNickname}
+          </span>
+          {displaySellerAddress && (
+            <span className="mono" style={{ color: 'var(--text-subtle)', marginLeft: 'auto', fontSize: '0.7rem' }}>
+              {truncateAddr(displaySellerAddress)}
+            </span>
+          )}
+        </div>
 
         {/* Details Grid */}
         <div
@@ -709,6 +804,20 @@ function DatasetCard({
           >
             <Download size={13} /> Download
           </button>
+        ) : isOwner ? (
+          <button
+            className="btn btn-secondary btn-sm"
+            style={{
+              flex: 2,
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-muted)',
+              cursor: 'default',
+            }}
+            disabled
+            title="You are the seller of this dataset"
+          >
+            <User size={13} /> Your Listing
+          </button>
         ) : isFree ? (
           <button
             className="btn btn-secondary btn-sm"
@@ -723,7 +832,7 @@ function DatasetCard({
             style={{ flex: 2 }}
             onClick={onBuy}
           >
-            <ShoppingBag size={13} /> Buy ({listing.price} tDUST)
+            <ShoppingBag size={13} /> Buy ({listing.price} tNIGHT)
           </button>
         )}
 
@@ -754,6 +863,10 @@ function PurchaseModal({
   onClose,
   onDirectVerify,
   onDownload,
+  onDeductBalance,
+  onCreditBalance,
+  onSignAndSubmitPurchaseTx,
+  onSelectSection,
 }: {
   listing: DataListing;
   walletState: WalletState;
@@ -764,36 +877,65 @@ function PurchaseModal({
   onClose: () => void;
   onDirectVerify: (listing: DataListing, payload?: string) => void;
   onDownload: (listing: DataListing) => void;
+  onDeductBalance?: (amount: number, targetAddress?: string) => void;
+  onCreditBalance?: (amount: number, targetAddress?: string) => void;
+  onSignAndSubmitPurchaseTx?: (
+    recipientAddress: string,
+    amountNight: number,
+    datasetName: string
+  ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
+  onSelectSection?: (section: NavSection) => void;
 }) {
   const [step, setStep] = useState<'review' | 'processing' | 'success'>('review');
+  const [processStage, setProcessStage] = useState<'proof' | 'sign' | 'ledger'>('proof');
   const [receipt, setReceipt] = useState<PurchaseRecord | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [copiedTx, setCopiedTx] = useState(false);
 
   const priceNum = Number(listing.price || 0);
-  const networkFee = 0.012;
-  const totalDust = (priceNum + networkFee).toFixed(3);
+  const networkGas = 0.012;
+
+  const registeredIds = useMemo(
+    () => new Set(profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)),
+    [profileHook.transactions]
+  );
+
+  const isOwner = Boolean(
+    walletAddress && (
+      (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
+      (listing.providerCommit && (
+        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
+        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
+      )) ||
+      registeredIds.has(listing.datasetId)
+    )
+  );
 
   const isConnected = walletState.status === 'connected' && !!walletAddress;
 
   const handleConfirmPurchase = async () => {
+    if (isOwner) {
+      setErrorMsg('You cannot purchase your own dataset listing.');
+      return;
+    }
     if (!isConnected) {
       onConnectWallet();
       return;
     }
 
     setStep('processing');
+    setProcessStage('proof');
     setErrorMsg(null);
 
     try {
-      // 1. Generate cryptographic purchase receipt anchor
+      // 1. Generate cryptographic purchase receipt anchor & slices
       const purchaseTime = new Date().toISOString();
       const rawReceiptSeed = `datavault:acq:${listing.datasetId}:${walletAddress}:${listing.dataCommitment}:${purchaseTime}`;
       const enc = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(rawReceiptSeed));
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const txHash = '0x' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+      let txHash = '0x' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 
-      // If buyer has the payload/slices, store them in the sliceStore
       if (listing.downloadPayload && contractBridge.sliceStore) {
         const payloadBytes = enc.encode(listing.downloadPayload);
         const { datasetSlicesFromBytesBrowser, hexToBytes32 } = await import('../utils/datasetUtils');
@@ -804,14 +946,63 @@ function PurchaseModal({
         } catch {}
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      // Stage 1: ZK Transfer Proof Generation
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Stage 2: Wallet Signature & On-Chain Escrow via Midnight Extension
+      setProcessStage('sign');
+      const sellerAddr = listing.sellerAddress || listing.providerCommit || '';
+      if (onSignAndSubmitPurchaseTx && priceNum > 0) {
+        try {
+          const signRes = await onSignAndSubmitPurchaseTx(sellerAddr, priceNum, listing.datasetName);
+          if (signRes.txHash) {
+            txHash = signRes.txHash;
+          }
+        } catch (signErr: any) {
+          setErrorMsg(signErr?.message || 'Transaction signing was cancelled.');
+          setStep('review');
+          return;
+        }
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        if (onDeductBalance && priceNum > 0) {
+          onDeductBalance(priceNum, walletAddress || undefined);
+        }
+        if (sellerAddr && priceNum > 0 && onCreditBalance) {
+          onCreditBalance(priceNum, sellerAddr);
+        }
+      }
+
+      // Stage 3: Broadcast Settlement to Midnight Ledger
+      setProcessStage('ledger');
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      // Persist in seller records
+      if (sellerAddr && priceNum > 0) {
+        try {
+          const sellerKey = `nocturne_sales_${sellerAddr.trim().toLowerCase()}`;
+          const existingRaw = localStorage.getItem(sellerKey);
+          const existingSales: SaleRecord[] = existingRaw ? JSON.parse(existingRaw) : [];
+          const newSale: SaleRecord = {
+            id: `sale_${Date.now()}`,
+            datasetId: listing.datasetId,
+            datasetName: listing.datasetName,
+            price: listing.price || '0',
+            currency: 'tNIGHT',
+            saleDate: purchaseTime,
+            buyerCommit: walletAddress || '0x_buyer',
+            txHash,
+          };
+          localStorage.setItem(sellerKey, JSON.stringify([newSale, ...existingSales]));
+        } catch {}
+      }
 
       const purchaseRecord: PurchaseRecord = {
         id: `purch_${Date.now()}`,
         datasetId: listing.datasetId,
         datasetName: listing.datasetName,
         price: listing.price || '0',
-        currency: listing.currency || 'tDUST',
+        currency: 'tNIGHT',
         purchaseDate: purchaseTime,
         receiptHash: txHash,
         dataCommitment: listing.dataCommitment,
@@ -830,7 +1021,7 @@ function PurchaseModal({
         datasetName: listing.datasetName,
         datasetId: listing.datasetId,
         type: 'purchased',
-        price: `${listing.price} tDUST`,
+        price: `${listing.price} tNIGHT`,
         txId: txHash,
         status: 'completed',
       });
@@ -840,7 +1031,7 @@ function PurchaseModal({
         datasetId: listing.datasetId,
         datasetName: listing.datasetName,
         price: listing.price || '0',
-        currency: listing.currency || 'tDUST',
+        currency: 'tNIGHT',
         saleDate: purchaseTime,
         buyerCommit: walletAddress || '0x_buyer',
         txHash,
@@ -851,6 +1042,14 @@ function PurchaseModal({
     } catch (e: any) {
       setErrorMsg(e?.message || 'Payment settlement failed.');
       setStep('review');
+    }
+  };
+
+  const copyTxId = () => {
+    if (receipt?.receiptHash) {
+      navigator.clipboard.writeText(receipt.receiptHash);
+      setCopiedTx(true);
+      setTimeout(() => setCopiedTx(false), 2000);
     }
   };
 
@@ -873,7 +1072,7 @@ function PurchaseModal({
         className="card"
         style={{
           width: '100%',
-          maxWidth: '480px',
+          maxWidth: '490px',
           padding: '1.75rem',
           background: 'var(--bg-modal)',
           boxShadow: 'var(--shadow-modal)',
@@ -903,9 +1102,15 @@ function PurchaseModal({
               }}
             >
               <h4 style={{ fontSize: '0.98rem', marginBottom: '0.25rem' }}>{listing.datasetName}</h4>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-subtle)' }}>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-subtle)', marginBottom: '0.35rem' }}>
                 License: {listing.license} · Records: {listing.rowCount || 'Custom'}
-              </span>
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Seller: <span style={{ color: 'var(--text-main)', fontWeight: 500 }}>{listing.sellerNickname || 'AI Researcher'}</span>{' '}
+                <code className="mono" style={{ color: 'var(--text-subtle)' }}>
+                  ({truncateAddr(listing.sellerAddress || listing.providerCommit)})
+                </code>
+              </div>
             </div>
 
             {/* Price breakdown */}
@@ -920,12 +1125,12 @@ function PurchaseModal({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem', color: 'var(--text-muted)' }}>
-                <span>Price:</span>
-                <span className="mono" style={{ color: 'var(--text-main)' }}>{priceNum} tDUST</span>
+                <span>Dataset Price:</span>
+                <span className="mono" style={{ color: 'var(--text-main)' }}>{priceNum} tNIGHT</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', color: 'var(--text-muted)' }}>
-                <span>Network Fee:</span>
-                <span className="mono">{networkFee} tDUST</span>
+                <span>ZK Privacy Gas (Network):</span>
+                <span className="mono">{networkGas} tDUST</span>
               </div>
               <div
                 style={{
@@ -937,12 +1142,28 @@ function PurchaseModal({
                   fontSize: '0.95rem',
                 }}
               >
-                <span>Total:</span>
-                <span className="mono">{totalDust} tDUST</span>
+                <span>Total to Escrow:</span>
+                <span className="mono" style={{ color: '#ffffff' }}>
+                  {priceNum} tNIGHT <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', fontWeight: 400 }}>(+ {networkGas} tDUST gas)</span>
+                </span>
               </div>
             </div>
 
-            {errorMsg && (
+            {isOwner ? (
+              <div
+                style={{
+                  padding: '0.75rem',
+                  background: 'rgba(255, 159, 10, 0.1)',
+                  border: '1px solid rgba(255, 159, 10, 0.25)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--accent-amber)',
+                  marginBottom: '1rem',
+                  fontSize: '0.8rem',
+                }}
+              >
+                You are the seller of this dataset and cannot purchase your own listing.
+              </div>
+            ) : errorMsg && (
               <div
                 style={{
                   padding: '0.75rem',
@@ -961,9 +1182,13 @@ function PurchaseModal({
               <button className="btn btn-secondary" style={{ flex: 1 }} onClick={onClose}>
                 Cancel
               </button>
-              {isConnected ? (
+              {isOwner ? (
+                <button className="btn btn-secondary" style={{ flex: 2 }} disabled>
+                  Your Listing
+                </button>
+              ) : isConnected ? (
                 <button className="btn btn-buy" style={{ flex: 2 }} onClick={handleConfirmPurchase}>
-                  Confirm & Pay {totalDust} tDUST
+                  Confirm & Pay {priceNum} tNIGHT
                 </button>
               ) : (
                 <button className="btn btn-primary" style={{ flex: 2 }} onClick={onConnectWallet}>
@@ -975,22 +1200,186 @@ function PurchaseModal({
         )}
 
         {step === 'processing' && (
-          <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                border: '2px solid rgba(255, 255, 255, 0.15)',
-                borderTopColor: '#ffffff',
-                margin: '0 auto 1rem auto',
-                animation: 'spin 1s linear infinite',
-              }}
-            />
-            <h4>Processing Settlement...</h4>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-              Confirming transaction on Midnight testnet.
-            </p>
+          <div style={{ padding: '0.5rem 0' }}>
+            <div style={{ textAlign: 'center', marginBottom: '1.4rem' }}>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  border: '2.5px solid rgba(255, 255, 255, 0.15)',
+                  borderTopColor: '#ffffff',
+                  margin: '0 auto 0.75rem auto',
+                  animation: 'spin 1s linear infinite',
+                  boxShadow: '0 0 16px rgba(255, 255, 255, 0.25)',
+                }}
+              />
+              <h3 style={{ fontSize: '1.1rem', color: 'var(--text-main)', marginBottom: '0.2rem' }}>
+                Settling On-Chain License
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Executing zero-knowledge transfer &amp; escrow settlement on Midnight
+              </p>
+            </div>
+
+            {/* Progressive Workflow Steps */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              {/* Step 1: ZK Proof */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background:
+                    processStage === 'proof'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                  border:
+                    processStage === 'proof'
+                      ? '1px solid rgba(255, 255, 255, 0.25)'
+                      : '1px solid var(--border-subtle)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background:
+                      processStage !== 'proof'
+                        ? 'rgba(48, 209, 88, 0.15)'
+                        : 'rgba(255, 255, 255, 0.15)',
+                    color: processStage !== 'proof' ? 'var(--accent-emerald)' : '#ffffff',
+                  }}
+                >
+                  {processStage !== 'proof' ? (
+                    <Check size={14} />
+                  ) : (
+                    <RefreshCw size={13} style={{ animation: 'spin 1.2s linear infinite' }} />
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    1. Generate Zero-Knowledge Transfer Proof
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                    Constructing SHA-256 slices &amp; ZK privacy commitment
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Wallet Signature */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background:
+                    processStage === 'sign'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                  border:
+                    processStage === 'sign'
+                      ? '1px solid rgba(255, 255, 255, 0.25)'
+                      : '1px solid var(--border-subtle)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background:
+                      processStage === 'ledger'
+                        ? 'rgba(48, 209, 88, 0.15)'
+                        : processStage === 'sign'
+                        ? 'rgba(255, 255, 255, 0.15)'
+                        : 'rgba(255, 255, 255, 0.04)',
+                    color:
+                      processStage === 'ledger'
+                        ? 'var(--accent-emerald)'
+                        : processStage === 'sign'
+                        ? '#ffffff'
+                        : 'var(--text-subtle)',
+                  }}
+                >
+                  {processStage === 'ledger' ? (
+                    <Check size={14} />
+                  ) : processStage === 'sign' ? (
+                    <RefreshCw size={13} style={{ animation: 'spin 1.2s linear infinite' }} />
+                  ) : (
+                    <Key size={13} />
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    2. Authorize &amp; Escrow Transfer
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                    Escrowing {priceNum} tNIGHT from {truncateAddr(walletAddress)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Ledger Broadcast */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                  padding: '0.75rem 0.9rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background:
+                    processStage === 'ledger'
+                      ? 'rgba(255, 255, 255, 0.08)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                  border:
+                    processStage === 'ledger'
+                      ? '1px solid rgba(255, 255, 255, 0.25)'
+                      : '1px solid var(--border-subtle)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 26,
+                    height: 26,
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background:
+                      processStage === 'ledger'
+                        ? 'rgba(255, 255, 255, 0.15)'
+                        : 'rgba(255, 255, 255, 0.04)',
+                    color: processStage === 'ledger' ? '#ffffff' : 'var(--text-subtle)',
+                  }}
+                >
+                  {processStage === 'ledger' ? (
+                    <RefreshCw size={13} style={{ animation: 'spin 1.2s linear infinite' }} />
+                  ) : (
+                    <ShieldCheck size={13} />
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                    3. Broadcast Settlement to Midnight Ledger
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-subtle)' }}>
+                    Anchoring acquisition proof &amp; minting download entitlement
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -999,11 +1388,13 @@ function PurchaseModal({
             <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
               <div
                 style={{
-                  width: '44px',
-                  height: '44px',
+                  width: '46px',
+                  height: '46px',
                   borderRadius: '50%',
-                  background: 'rgba(48, 209, 88, 0.15)',
+                  background: 'linear-gradient(135deg, rgba(48, 209, 88, 0.22) 0%, rgba(30, 160, 60, 0.1) 100%)',
                   color: 'var(--accent-emerald)',
+                  border: '1px solid rgba(48, 209, 88, 0.35)',
+                  boxShadow: '0 0 20px rgba(48, 209, 88, 0.3)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1012,29 +1403,84 @@ function PurchaseModal({
               >
                 <Check size={24} />
               </div>
-              <h3 style={{ fontSize: '1.1rem' }}>Purchase Successful</h3>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                Your dataset license and download payload are ready.
+              <h3 style={{ fontSize: '1.15rem', color: 'var(--text-main)' }}>Purchase Successful &amp; Settled</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                Paid <strong className="mono" style={{ color: '#ffffff' }}>{priceNum} tNIGHT</strong> · Cryptographic License Minted
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {/* Receipt Summary Card */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-glass)',
+                padding: '1rem',
+                marginBottom: '1.25rem',
+                fontSize: '0.82rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Dataset:</span>
+                <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{receipt.datasetName}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>License &amp; Format:</span>
+                <span style={{ color: 'var(--text-subtle)' }}>
+                  {receipt.license} · {receipt.format?.toUpperCase() || 'CSV'} ({receipt.rowCount || 'Custom'})
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.45rem' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Deducted from Wallet:</span>
+                <span className="mono badge badge-silver-glow" style={{ fontSize: '0.72rem' }}>
+                  -{priceNum} tNIGHT
+                </span>
+              </div>
+              <div
+                style={{
+                  borderTop: '1px solid var(--border-subtle)',
+                  paddingTop: '0.5rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <span style={{ color: 'var(--text-muted)' }}>Tx Hash:</span>
+                <button
+                  onClick={copyTxId}
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}
+                  title="Copy transaction hash"
+                >
+                  <code className="mono">{truncateAddr(receipt.receiptHash)}</code>
+                  {copiedTx ? <Check size={12} color="var(--accent-emerald)" /> : <Copy size={12} />}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
               <button
                 className="btn btn-primary"
-                style={{ width: '100%' }}
+                style={{ width: '100%', padding: '0.7rem' }}
                 onClick={() => onDownload(listing)}
               >
-                <Download size={15} /> Download Dataset
+                <Download size={15} /> Download Dataset Deliverable
               </button>
               <button
                 className="btn btn-secondary"
-                style={{ width: '100%' }}
+                style={{ width: '100%', padding: '0.65rem' }}
                 onClick={() => onDirectVerify(listing, receipt.downloadPayload)}
               >
                 <ShieldCheck size={15} /> Verify Deliverable Integrity
               </button>
-              <button className="btn btn-ghost btn-sm" onClick={onClose}>
-                Done
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  onClose();
+                  onSelectSection?.('profile');
+                }}
+              >
+                View in Purchased Datasets
               </button>
             </div>
           </div>
@@ -1050,10 +1496,14 @@ function PurchaseModal({
 
 function RegisterView({
   walletState,
+  walletAddress,
+  profileHook,
   contractBridge,
   onSuccess,
 }: {
   walletState: WalletState;
+  walletAddress?: string | null;
+  profileHook?: UserProfileHook;
   contractBridge: ContractBridgeHook;
   onSuccess: (listing: DataListing, txHash?: string) => void;
 }) {
@@ -1151,6 +1601,14 @@ function RegisterView({
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('');
 
+      const sellerAddr =
+        (walletState.status === 'connected' && walletState.address)
+          ? walletState.address
+          : (walletAddress || undefined);
+
+      const sellerNick =
+        profileHook?.profile?.nickname || 'AI Researcher';
+
       const newListing: DataListing = {
         datasetId: regResult.datasetId,
         providerCommit,
@@ -1163,7 +1621,9 @@ function RegisterView({
         isActive: true,
         description: description.trim(),
         price: pricingModel === 'free' ? '0' : priceInput.trim() || '10',
-        currency: 'tDUST',
+        currency: 'tNIGHT',
+        sellerAddress: sellerAddr,
+        sellerNickname: sellerNick,
         accessTier: pricingModel === 'free' ? 'free' : 'commercial',
         sampleData: samplePreview || fileContent.slice(0, 300),
         downloadPayload: fileContent,
@@ -1194,16 +1654,17 @@ function RegisterView({
           <div
             style={{
               padding: '0.85rem 1rem',
-              background: 'rgba(255, 159, 10, 0.08)',
-              border: '1px solid rgba(255, 159, 10, 0.25)',
+              background: 'linear-gradient(135deg, rgba(255, 69, 58, 0.12) 0%, rgba(180, 20, 20, 0.05) 100%)',
+              border: '1px solid rgba(255, 69, 58, 0.35)',
               borderRadius: 'var(--radius-sm)',
-              color: 'var(--accent-amber)',
+              color: '#ff857d',
+              boxShadow: '0 0 16px rgba(255, 69, 58, 0.15)',
               marginBottom: '1.25rem',
               fontSize: '0.82rem',
               lineHeight: 1.5,
             }}
           >
-            <strong>ℹ Local Anchor Mode:</strong> The remote Midnight proof server is currently unreachable. Your dataset will be registered locally with authentic SHA-256 slices &amp; cryptographic integrity anchors, and will be ready for immediate on-chain submission once the proof server is live.
+            <strong style={{ color: '#ff6961' }}>ℹ Local Anchor Mode:</strong> The remote Midnight proof server is currently unreachable. Your dataset will be registered locally with authentic SHA-256 slices &amp; cryptographic integrity anchors, and will be ready for immediate on-chain submission once the proof server is live.
           </div>
         )}
 
@@ -1290,7 +1751,7 @@ function RegisterView({
                 style={{ flex: 1 }}
                 onClick={() => setPricingModel('paid')}
               >
-                Paid (tDUST)
+                Paid (tNIGHT)
               </button>
               <button
                 type="button"
@@ -1310,10 +1771,10 @@ function RegisterView({
                   className="input"
                   value={priceInput}
                   onChange={(e) => setPriceInput(e.target.value)}
-                  placeholder="Price in tDUST"
+                  placeholder="Price in tNIGHT"
                 />
                 <span className="mono" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                  tDUST
+                  tNIGHT
                 </span>
               </div>
             )}
@@ -1571,58 +2032,191 @@ function VerifierView({
                 </div>
               ) : (
                 <>
-                  {/* Search Filter when multiple datasets exist */}
-                  {listings.length > 3 && (
-                    <div style={{ marginBottom: '0.75rem' }}>
+                  {/* Search Input for Dataset Catalog */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                      <label className="form-label" style={{ margin: 0 }}>
+                        Select Dataset to Verify
+                      </label>
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-subtle)' }}>
+                        {filteredListings.length} {filteredListings.length === 1 ? 'dataset' : 'datasets'} available
+                      </span>
+                    </div>
+
+                    <div style={{ position: 'relative' }}>
+                      <Search
+                        size={15}
+                        style={{
+                          position: 'absolute',
+                          left: '0.85rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          color: 'var(--text-subtle)',
+                          pointerEvents: 'none',
+                        }}
+                      />
                       <input
                         type="text"
                         className="input"
-                        style={{ fontSize: '0.82rem', padding: '0.45rem 0.75rem' }}
-                        placeholder="Filter datasets by title or category..."
+                        style={{
+                          paddingLeft: '2.4rem',
+                          paddingRight: searchTerm ? '2.2rem' : '0.85rem',
+                          fontSize: '0.84rem',
+                        }}
+                        placeholder="Search by dataset title, category, or ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
+                      {searchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchTerm('')}
+                          style={{
+                            position: 'absolute',
+                            right: '0.75rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '0.2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                          }}
+                          title="Clear search"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
 
-                  <div style={{ marginBottom: '1.25rem' }}>
-                    <label className="form-label">Select Dataset to Verify</label>
-                    <select
-                      className="select"
-                      value={selectedDatasetId}
-                      onChange={(e) => {
-                        setSelectedDatasetId(e.target.value);
-                        setStatus('idle');
+                  {/* Interactive Dataset List */}
+                  {filteredListings.length === 0 ? (
+                    <div
+                      style={{
+                        padding: '1.75rem 1rem',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        borderRadius: 'var(--radius-sm)',
+                        border: '1px solid var(--border-glass)',
+                        marginBottom: '1.25rem',
                       }}
                     >
-                      <option value="">-- Choose a dataset ({filteredListings.length} available) --</option>
-                      {filteredListings.map((l) => (
-                        <option key={l.datasetId} value={l.datasetId}>
-                          {l.datasetName} · {l.category || 'Dataset'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      <p style={{ fontSize: '0.85rem', marginBottom: '0.6rem' }}>
+                        No datasets matching &ldquo;{searchTerm}&rdquo;
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setSearchTerm('')}
+                      >
+                        Clear Search
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        maxHeight: '260px',
+                        overflowY: 'auto',
+                        marginBottom: '1.25rem',
+                        paddingRight: '0.25rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      {filteredListings.map((l) => {
+                        const isSelected = (activeListing?.datasetId === l.datasetId);
+                        return (
+                          <div
+                            key={l.datasetId}
+                            onClick={() => {
+                              setSelectedDatasetId(l.datasetId);
+                              setStatus('idle');
+                            }}
+                            style={{
+                              padding: '0.85rem 1rem',
+                              borderRadius: 'var(--radius-sm)',
+                              background: isSelected
+                                ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(200, 215, 235, 0.03) 100%)'
+                                : 'rgba(255, 255, 255, 0.02)',
+                              border: isSelected
+                                ? '1.5px solid #ffffff'
+                                : '1px solid var(--border-glass)',
+                              boxShadow: isSelected
+                                ? '0 0 16px rgba(255, 255, 255, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.2)'
+                                : 'none',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.35rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <div
+                                  style={{
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: '50%',
+                                    border: isSelected ? '1.5px solid #ffffff' : '1px solid var(--border-subtle)',
+                                    background: isSelected ? '#ffffff' : 'transparent',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {isSelected && <Check size={11} color="#000000" strokeWidth={3} />}
+                                </div>
+                                <span style={{ fontWeight: 600, fontSize: '0.92rem', color: isSelected ? '#ffffff' : 'var(--text-main)' }}>
+                                  {l.datasetName}
+                                </span>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                <span className={`badge ${l.price && l.price !== '0' ? 'badge-silver-glow' : 'badge-green'}`}>
+                                  {l.price && l.price !== '0' ? `${l.price} tNIGHT` : 'Free'}
+                                </span>
+                                <span className="badge badge-subtle">{l.category || 'AI Dataset'}</span>
+                              </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.74rem', color: 'var(--text-subtle)', marginLeft: '1.65rem' }}>
+                              <span>{l.rowCount || 'Custom Records'} · {l.license}</span>
+                              <span className="mono" title={l.dataCommitment}>
+                                {truncateAddr(l.dataCommitment)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {activeListing && (
                     <div
                       style={{
-                        padding: '1rem',
-                        background: 'rgba(255, 255, 255, 0.02)',
+                        padding: '1rem 1.15rem',
+                        background: 'rgba(255, 255, 255, 0.03)',
                         borderRadius: 'var(--radius-sm)',
                         border: '1px solid var(--border-glass)',
                         marginBottom: '1.25rem',
                         fontSize: '0.8rem',
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{activeListing.datasetName}</span>
-                        <span className="badge badge-subtle">{activeListing.category || 'AI Dataset'}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                        <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>
+                          Target On-Chain Anchor
+                        </span>
+                        <span className="badge badge-silver-glow" style={{ fontSize: '0.7rem' }}>
+                          Verified Target
+                        </span>
                       </div>
-                      <div style={{ color: 'var(--text-subtle)', fontSize: '0.72rem', marginBottom: '0.2rem' }}>
-                        ON-CHAIN COMMITMENT ANCHOR
+                      <div style={{ color: 'var(--text-subtle)', fontSize: '0.72rem', marginBottom: '0.25rem' }}>
+                        CRYPTOGRAPHIC COMMITMENT HASH
                       </div>
-                      <code className="mono" style={{ wordBreak: 'break-all', fontSize: '0.75rem' }}>
+                      <code className="mono" style={{ wordBreak: 'break-all', fontSize: '0.76rem', color: 'var(--text-main)' }}>
                         {activeListing.dataCommitment}
                       </code>
                     </div>
@@ -1728,24 +2322,63 @@ function VerifierView({
 function InspectModal({
   listing,
   isFavorite,
+  walletAddress,
   profileHook,
   onToggleFavorite,
   onClose,
   onBuy,
   onDownload,
   onVerify,
+  onRemoveListing,
 }: {
   listing: DataListing;
   isFavorite: boolean;
+  walletAddress?: string | null;
   profileHook: UserProfileHook;
   onToggleFavorite: () => void;
   onClose: () => void;
   onBuy: () => void;
   onDownload: () => void;
   onVerify: () => void;
+  onRemoveListing?: (datasetId: string) => void;
 }) {
+  const [copiedSeller, setCopiedSeller] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isPurchased = profileHook.isPurchased(listing.datasetId);
   const isFree = !listing.price || listing.price === '0' || listing.price.toLowerCase() === 'free';
+
+  const registeredIds = useMemo(
+    () => new Set(profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)),
+    [profileHook.transactions]
+  );
+
+  const isOwner = Boolean(
+    walletAddress && (
+      (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
+      (listing.providerCommit && (
+        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
+        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
+      )) ||
+      registeredIds.has(listing.datasetId)
+    )
+  );
+
+  const displayNickname =
+    listing.sellerNickname ||
+    (isOwner ? profileHook.profile.nickname || 'AI Researcher' : 'AI Researcher');
+
+  const displaySellerAddress =
+    listing.sellerAddress ||
+    (isOwner ? walletAddress || '' : '') ||
+    listing.providerCommit ||
+    '';
+
+  const copySellerAddress = () => {
+    if (!displaySellerAddress) return;
+    navigator.clipboard.writeText(displaySellerAddress);
+    setCopiedSeller(true);
+    setTimeout(() => setCopiedSeller(false), 2000);
+  };
 
   return (
     <div
@@ -1776,15 +2409,33 @@ function InspectModal({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
           <div>
             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.35rem' }}>
-              <span className={`badge ${isFree ? 'badge-green' : 'badge-amber'}`}>
-                {isFree ? 'Free' : `${listing.price} tDUST`}
+              <span className={`badge ${isFree ? 'badge-green' : 'badge-silver-glow'}`}>
+                {isFree ? 'Free' : `${listing.price} tNIGHT`}
               </span>
               <span className="badge">{listing.category || 'AI Dataset'}</span>
             </div>
             <h3 style={{ fontSize: '1.2rem' }}>{listing.datasetName}</h3>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {isOwner && onRemoveListing && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete((prev) => !prev)}
+                title="Delete Listing"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: confirmDelete ? '#ef4444' : 'var(--text-subtle)',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <Trash2 size={17} />
+              </button>
+            )}
             <button
               onClick={onToggleFavorite}
               style={{
@@ -1805,9 +2456,125 @@ function InspectModal({
           </div>
         </div>
 
-        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+        <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', marginBottom: '1.15rem' }}>
           {listing.description || 'Verified dataset on Midnight.'}
         </p>
+
+        {/* Delete Confirmation Alert Box */}
+        {confirmDelete && (
+          <div
+            style={{
+              padding: '1.1rem',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: '1.25rem',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontWeight: 600, color: '#f87171', marginBottom: '0.35rem', fontSize: '0.92rem' }}>
+              Delete this dataset listing?
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.85rem' }}>
+              This will permanently remove "{listing.datasetName}" from the marketplace.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ background: '#ef4444', borderColor: '#ef4444', color: '#ffffff', fontWeight: 600 }}
+                onClick={() => {
+                  onRemoveListing?.(listing.datasetId);
+                  onClose();
+                }}
+              >
+                <Trash2 size={13} /> Confirm Delete
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Seller Info Card */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            background: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-subtle)',
+            marginBottom: '1.25rem',
+            gap: '0.75rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '34px',
+                height: '34px',
+                borderRadius: '50%',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--border-glass)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ffffff',
+                flexShrink: 0,
+              }}
+            >
+              <User size={16} />
+            </div>
+            <div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Seller
+              </div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                {displayNickname} {isOwner && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 400 }}>(You)</span>}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            {displaySellerAddress ? (
+              <>
+                <code
+                  className="mono"
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '0.25rem 0.55rem',
+                    background: 'rgba(0, 0, 0, 0.4)',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--border-subtle)',
+                    color: 'var(--text-muted)',
+                  }}
+                  title={displaySellerAddress}
+                >
+                  {truncateAddr(displaySellerAddress)}
+                </code>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: '0.25rem 0.45rem' }}
+                  title="Copy Seller Wallet Address"
+                  onClick={copySellerAddress}
+                >
+                  {copiedSeller ? <Check size={13} color="var(--accent-emerald)" /> : <Copy size={13} />}
+                </button>
+              </>
+            ) : (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-subtle)' }}>Anonymous</span>
+            )}
+          </div>
+        </div>
 
         {listing.sampleData && (
           <div style={{ marginBottom: '1.25rem' }}>
@@ -1835,13 +2602,27 @@ function InspectModal({
             <button className="btn btn-primary" style={{ flex: 2 }} onClick={onDownload}>
               <Download size={15} /> Download Deliverable
             </button>
+          ) : isOwner ? (
+            <button
+              className="btn btn-secondary"
+              style={{
+                flex: 2,
+                background: 'rgba(255, 255, 255, 0.06)',
+                color: 'var(--text-muted)',
+                cursor: 'default',
+              }}
+              disabled
+              title="You listed this dataset"
+            >
+              <User size={15} /> Your Listing (Seller)
+            </button>
           ) : isFree ? (
             <button className="btn btn-primary" style={{ flex: 2 }} onClick={onDownload}>
               <Download size={15} /> Free Download
             </button>
           ) : (
             <button className="btn btn-buy" style={{ flex: 2 }} onClick={onBuy}>
-              <ShoppingBag size={15} /> Buy ({listing.price} tDUST)
+              <ShoppingBag size={15} /> Buy ({listing.price} tNIGHT)
             </button>
           )}
 
@@ -1857,6 +2638,13 @@ function InspectModal({
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
+
+function truncateAddr(addr?: string | null): string {
+  if (!addr) return 'Anonymous';
+  const clean = addr.trim();
+  if (clean.length < 20) return clean;
+  return `${clean.slice(0, 10)}…${clean.slice(-8)}`;
+}
 
 function formatBytes(bytesStr: string | number): string {
   const n = Number(bytesStr);

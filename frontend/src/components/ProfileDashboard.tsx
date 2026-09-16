@@ -35,7 +35,7 @@ interface Props {
   onVerifyAcquisition?: (listing: DataListing, payload?: string) => void;
 }
 
-type Tab = 'profile' | 'purchases' | 'listings';
+type Tab = 'profile' | 'purchases' | 'listings' | 'archived';
 
 function truncateAddr(addr: string): string {
   if (!addr || addr.length < 20) return addr;
@@ -59,6 +59,7 @@ export function ProfileDashboard({
   const [bioSavedFeedback, setBioSavedFeedback] = useState(false);
   const [copied, setCopied] = useState(false);
   const [datasetToRemove, setDatasetToRemove] = useState<DataListing | null>(null);
+  const [purchaseToRemove, setPurchaseToRemove] = useState<PurchaseRecord | null>(null);
 
   const { profile, purchases, sales, updateProfile } = profileHook;
 
@@ -69,12 +70,28 @@ export function ProfileDashboard({
   }, [profile.nickname, profile.bio]);
 
   // Datasets listed by connected wallet
+  const registeredIds = new Set(
+    profileHook.transactions
+      .filter((t) => t.type === 'registered')
+      .map((t) => t.datasetId)
+  );
+
   const myListings = registryState.listings.filter((l) => {
     if (!walletAddress) return false;
     const cleanAddr = walletAddress.trim().toLowerCase();
+    const cleanSeller = (l.sellerAddress || '').trim().toLowerCase();
     const cleanProvider = (l.providerCommit || '').trim().toLowerCase();
-    return cleanProvider === cleanAddr || cleanProvider === cleanAddr.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '');
+    const isSellerMatch = cleanSeller.length > 0 && cleanSeller === cleanAddr;
+    const isProviderMatch = cleanProvider.length > 0 && (
+      cleanProvider === cleanAddr ||
+      cleanProvider === cleanAddr.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
+    );
+    const isTxMatch = registeredIds.has(l.datasetId);
+    return isSellerMatch || isProviderMatch || isTxMatch;
   });
+
+  const activeListings = myListings.filter((l) => l.isActive !== false);
+  const archivedListings = myListings.filter((l) => l.isActive === false);
 
   const totalRevenue = sales.reduce((acc, s) => acc + Number(s.price || 0), 0);
 
@@ -132,7 +149,13 @@ export function ProfileDashboard({
             className={`btn btn-sm ${activeTab === 'listings' ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab('listings')}
           >
-            <Database size={14} /> My Listings ({myListings.length})
+            <Database size={14} /> My Listings ({activeListings.length})
+          </button>
+          <button
+            className={`btn btn-sm ${activeTab === 'archived' ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => setActiveTab('archived')}
+          >
+            <Archive size={14} /> Archived ({archivedListings.length})
           </button>
         </div>
 
@@ -298,7 +321,7 @@ export function ProfileDashboard({
                     <span style={{ fontSize: '0.7rem', color: 'var(--text-subtle)', display: 'block', letterSpacing: '0.04em' }}>REVENUE</span>
                     <strong style={{ fontSize: '1.1rem', color: '#ffffff' }}>
                       {totalRevenue}{' '}
-                      <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>tDUST</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>tNIGHT</span>
                     </strong>
                   </div>
                 </div>
@@ -344,7 +367,9 @@ export function ProfileDashboard({
                       <div>
                         <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem' }}>
                           <span className="badge badge-green">Purchased</span>
-                          <span className="badge badge-subtle">{p.price} {p.currency}</span>
+                          <span className={`badge ${p.price && p.price !== '0' ? 'badge-silver-glow' : 'badge-green'}`}>
+                            {p.price} {p.currency}
+                          </span>
                         </div>
                         <h4 style={{ fontSize: '1rem' }}>{p.datasetName}</h4>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem' }}>
@@ -353,7 +378,7 @@ export function ProfileDashboard({
                         </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                         <button
                           className="btn btn-primary btn-sm"
                           onClick={() => handleDownloadPurchase(p)}
@@ -368,6 +393,14 @@ export function ProfileDashboard({
                             <ShieldCheck size={13} /> Verify
                           </button>
                         )}
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--accent-rose)' }}
+                          onClick={() => setPurchaseToRemove(p)}
+                          title="Delete purchase record"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </div>
                   );
@@ -377,26 +410,38 @@ export function ProfileDashboard({
           </div>
         )}
 
-        {/* ── TAB 3: MY LISTINGS ────────────────────────────────────────────── */}
+        {/* ── TAB 3: MY LISTINGS (ACTIVE) ─────────────────────────────────── */}
         {activeTab === 'listings' && (
           <div>
-            {myListings.length === 0 ? (
+            {activeListings.length === 0 ? (
               <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: 'var(--text-muted)' }}>
                 <Database size={32} style={{ margin: '0 auto 0.75rem auto', opacity: 0.35 }} />
-                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.25rem' }}>No datasets listed</h3>
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.25rem' }}>No active datasets</h3>
                 <p style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                  List and monetize your AI datasets with on-chain cryptographic anchors.
+                  {archivedListings.length > 0
+                    ? `You have ${archivedListings.length} archived dataset${archivedListings.length > 1 ? 's' : ''}.`
+                    : 'List and monetize your AI datasets with on-chain cryptographic anchors.'}
                 </p>
-                <button
-                  className="btn btn-primary btn-sm"
-                  onClick={() => onSelectSection('register')}
-                >
-                  <PlusCircle size={13} /> List a Dataset
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => onSelectSection('register')}
+                  >
+                    <PlusCircle size={13} /> List a Dataset
+                  </button>
+                  {archivedListings.length > 0 && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setActiveTab('archived')}
+                    >
+                      <Archive size={13} /> View Archived ({archivedListings.length})
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                {myListings.map((l) => (
+                {activeListings.map((l) => (
                   <div
                     key={l.datasetId}
                     className="card"
@@ -411,11 +456,11 @@ export function ProfileDashboard({
                   >
                     <div>
                       <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem' }}>
-                        <span className="badge badge-subtle">
-                          {l.price && l.price !== '0' ? `${l.price} tDUST` : 'Free'}
+                        <span className={`badge ${l.price && l.price !== '0' ? 'badge-silver-glow' : 'badge-green'}`}>
+                          {l.price && l.price !== '0' ? `${l.price} tNIGHT` : 'Free'}
                         </span>
-                        <span className={`badge ${l.isActive ? 'badge-green' : 'badge-subtle'}`}>
-                          {l.isActive ? 'Active' : 'Archived'}
+                        <span className="badge badge-green">
+                          Active on Marketplace
                         </span>
                       </div>
                       <h4 style={{ fontSize: '1rem' }}>{l.datasetName}</h4>
@@ -430,9 +475,10 @@ export function ProfileDashboard({
                           className="btn btn-secondary btn-sm"
                           onClick={() => onToggleArchive(l.datasetId)}
                           style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          title="Archive this dataset (removes from public marketplace)"
                         >
-                          {l.isActive ? <Archive size={13} /> : <RotateCcw size={13} />}
-                          <span>{l.isActive ? 'Archive' : 'Restore'}</span>
+                          <Archive size={13} />
+                          <span>Archive</span>
                         </button>
                       )}
                       {onRemoveListing && (
@@ -440,6 +486,88 @@ export function ProfileDashboard({
                           className="btn btn-ghost btn-sm"
                           style={{ color: 'var(--accent-rose)' }}
                           onClick={() => setDatasetToRemove(l)}
+                          title="Delete dataset"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── TAB 4: ARCHIVED DATASETS ──────────────────────────────────────── */}
+        {activeTab === 'archived' && (
+          <div>
+            {archivedListings.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: 'var(--text-muted)' }}>
+                <Archive size={32} style={{ margin: '0 auto 0.75rem auto', opacity: 0.35 }} />
+                <h3 style={{ color: 'var(--text-main)', marginBottom: '0.25rem' }}>No archived datasets</h3>
+                <p style={{ fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                  Datasets you archive from the marketplace will appear here. You can restore them to the public marketplace anytime.
+                </p>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setActiveTab('listings')}
+                >
+                  <Database size={13} /> View Active Listings ({activeListings.length})
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ padding: '0.5rem 0.2rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  Archived datasets are hidden from public buyers on the marketplace. Click <strong>Restore</strong> to reactivate.
+                </div>
+                {archivedListings.map((l) => (
+                  <div
+                    key={l.datasetId}
+                    className="card"
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '1rem',
+                      flexWrap: 'wrap',
+                      padding: '1.15rem 1.35rem',
+                      opacity: 0.9,
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                        <span className={`badge ${l.price && l.price !== '0' ? 'badge-silver-glow' : 'badge-green'}`}>
+                          {l.price && l.price !== '0' ? `${l.price} tNIGHT` : 'Free'}
+                        </span>
+                        <span className="badge badge-subtle">
+                          Archived (Hidden)
+                        </span>
+                      </div>
+                      <h4 style={{ fontSize: '1rem' }}>{l.datasetName}</h4>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-subtle)', marginTop: '0.25rem' }}>
+                        {l.rowCount || 'Custom'} · {l.license}
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      {onToggleArchive && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => onToggleArchive(l.datasetId)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          title="Restore dataset to public marketplace"
+                        >
+                          <RotateCcw size={13} />
+                          <span>Restore</span>
+                        </button>
+                      )}
+                      {onRemoveListing && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ color: 'var(--accent-rose)' }}
+                          onClick={() => setDatasetToRemove(l)}
+                          title="Delete dataset"
                         >
                           <Trash2 size={13} />
                         </button>
@@ -567,6 +695,19 @@ export function ProfileDashboard({
               setDatasetToRemove(null);
             }}
             onCancel={() => setDatasetToRemove(null)}
+          />
+        )}
+
+        {purchaseToRemove && (
+          <ConfirmModal
+            isOpen={true}
+            title="Delete Purchase Record"
+            message={`Are you sure you want to remove "${purchaseToRemove.datasetName}" from your purchased datasets list?`}
+            onConfirm={() => {
+              profileHook.removePurchase(purchaseToRemove.id);
+              setPurchaseToRemove(null);
+            }}
+            onCancel={() => setPurchaseToRemove(null)}
           />
         )}
       </div>
