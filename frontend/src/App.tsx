@@ -278,6 +278,16 @@ function App() {
             indexer.incrementVerifiedCount();
             showToast('Integrity proof verified on Midnight');
           }}
+          onDeductBalance={(amount, targetAddress) => {
+            midnightHook.deductBalance(amount, targetAddress);
+          }}
+          onCreditBalance={(amount, targetAddress) => {
+            midnightHook.creditBalance(amount, targetAddress);
+          }}
+          onSignAndSubmitPurchaseTx={midnightHook.signAndSubmitPurchaseTx}
+          onRefreshBalance={() => {
+            midnightHook.refreshBalance();
+          }}
           laceIcon={midnightHook.laceIcon}
           oneAmIcon={midnightHook.oneAmIcon}
         />
@@ -332,13 +342,24 @@ function App() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.35rem',
+                gap: '0.4rem',
                 fontSize: '0.74rem',
-                padding: '0.2rem 0.6rem',
+                fontWeight: 500,
+                padding: '0.22rem 0.65rem',
                 borderRadius: 'var(--radius-full)',
-                background: contractBridge.proofServerOnline ? 'rgba(48, 209, 88, 0.1)' : 'rgba(255, 159, 10, 0.1)',
-                border: `1px solid ${contractBridge.proofServerOnline ? 'rgba(48, 209, 88, 0.25)' : 'rgba(255, 159, 10, 0.25)'}`,
-                color: contractBridge.proofServerOnline ? 'var(--accent-emerald)' : 'var(--accent-amber)',
+                background: contractBridge.proofServerOnline
+                  ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(200, 215, 235, 0.07) 100%)'
+                  : 'linear-gradient(135deg, rgba(255, 69, 58, 0.18) 0%, rgba(180, 20, 20, 0.08) 100%)',
+                border: contractBridge.proofServerOnline
+                  ? '1px solid rgba(240, 246, 255, 0.42)'
+                  : '1px solid rgba(255, 69, 58, 0.45)',
+                color: contractBridge.proofServerOnline ? '#ffffff' : '#ff6961',
+                boxShadow: contractBridge.proofServerOnline
+                  ? '0 0 12px rgba(220, 235, 255, 0.26), inset 0 1px 1px rgba(255, 255, 255, 0.35)'
+                  : '0 0 14px rgba(255, 69, 58, 0.35), inset 0 1px 1px rgba(255, 120, 120, 0.25)',
+                textShadow: contractBridge.proofServerOnline
+                  ? '0 0 8px rgba(255, 255, 255, 0.45)'
+                  : '0 0 8px rgba(255, 69, 58, 0.5)',
               }}
               title={contractBridge.proofServerOnline ? 'Proof server connected' : 'Proof server offline — local cryptographic fallback active'}
             >
@@ -347,7 +368,10 @@ function App() {
                   width: '6px',
                   height: '6px',
                   borderRadius: '50%',
-                  background: contractBridge.proofServerOnline ? 'var(--accent-emerald)' : 'var(--accent-amber)',
+                  background: contractBridge.proofServerOnline ? '#ffffff' : '#ff453a',
+                  boxShadow: contractBridge.proofServerOnline
+                    ? '0 0 6px #ffffff, 0 0 10px rgba(255, 255, 255, 0.9)'
+                    : '0 0 6px #ff453a, 0 0 12px rgba(255, 69, 58, 0.95)',
                 }}
               />
               <span>Proof Server: {contractBridge.proofServerOnline ? 'Online' : 'Offline (Local Anchor Mode)'}</span>
