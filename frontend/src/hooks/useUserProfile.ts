@@ -65,6 +65,7 @@ export interface UserProfileHook {
   updateProfile: (partial: Partial<UserProfile>) => void;
   addTransaction: (tx: UserTransaction) => void;
   addPurchase: (purchase: PurchaseRecord) => void;
+  removePurchase: (purchaseId: string) => void;
   addSale: (sale: SaleRecord) => void;
   isPurchased: (datasetId: string) => boolean;
   clearProfile: () => void;
@@ -244,6 +245,25 @@ export function useUserProfile(walletAddress: string | null): UserProfileHook {
     [walletAddress],
   );
 
+  const removePurchase = useCallback(
+    (purchaseId: string) => {
+      if (!walletAddress) return;
+      setPurchases((prev) => {
+        const cleanTarget = purchaseId.startsWith('0x') ? purchaseId.slice(2) : purchaseId;
+        const updated = prev.filter(
+          (p) =>
+            p.id !== purchaseId &&
+            p.datasetId !== purchaseId &&
+            p.datasetId !== cleanTarget &&
+            (p.datasetId.startsWith('0x') ? p.datasetId.slice(2) : p.datasetId) !== cleanTarget,
+        );
+        savePurchases(walletAddress, updated);
+        return updated;
+      });
+    },
+    [walletAddress],
+  );
+
   const addSale = useCallback(
     (sale: SaleRecord) => {
       if (!walletAddress) return;
@@ -290,6 +310,7 @@ export function useUserProfile(walletAddress: string | null): UserProfileHook {
     updateProfile,
     addTransaction,
     addPurchase,
+    removePurchase,
     addSale,
     isPurchased,
     clearProfile,

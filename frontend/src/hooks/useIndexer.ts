@@ -25,6 +25,7 @@ export interface DataListing {
   price?: string;            // e.g. "35", "0"
   currency?: string;         // "tDUST"
   sellerAddress?: string;    // Provider address
+  sellerNickname?: string;   // Provider display nickname
   accessTier?: 'free' | 'paid' | 'commercial';
   sampleData?: string;       // Privacy-safe sample preview
   downloadPayload?: string;  // Complete payload for buyers upon acquisition
@@ -114,7 +115,7 @@ async function fetchRegistryState(): Promise<{ verifiedCount: number; listings: 
       category: e.value?.category ?? 'General AI',
       complianceTag: e.value?.complianceTag ?? null,
       price: e.value?.price ?? '0',
-      currency: 'tDUST',
+      currency: 'tNIGHT',
       accessTier: e.value?.price && e.value?.price !== '0' ? 'paid' : 'free',
       verifiedOnChain: true,
     }));
@@ -222,13 +223,31 @@ export function useIndexer(): IndexerHook {
       const target = prev.listings.find((l) => l.datasetId === cleanId);
       if (!target) return prev;
 
-      if (callerAddress && target.providerCommit) {
+      if (callerAddress) {
         const cleanCaller = callerAddress.trim().toLowerCase();
-        const cleanProvider = target.providerCommit.trim().toLowerCase();
+        const cleanProvider = (target.providerCommit || '').trim().toLowerCase();
+        const cleanSeller = (target.sellerAddress || '').trim().toLowerCase();
+
+        let isTxOwner = false;
+        try {
+          const rawTxns = localStorage.getItem(`nocturne_txns_${callerAddress}`) || localStorage.getItem(`datavault_txns_${callerAddress}`);
+          if (rawTxns) {
+            const txns = JSON.parse(rawTxns);
+            if (Array.isArray(txns)) {
+              isTxOwner = txns.some((t: any) => t.type === 'registered' && (t.datasetId === cleanId || t.datasetId === `0x${cleanId}`));
+            }
+          }
+        } catch {}
+
         const isAuth =
+          !target.sellerAddress ||
+          cleanSeller.length === 0 ||
+          cleanSeller === cleanCaller ||
           cleanProvider === cleanCaller ||
           cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '');
+          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
+          isTxOwner;
+
         if (!isAuth) {
           console.warn('[useIndexer] Unauthorized attempt to archive dataset by', callerAddress);
           return prev;
@@ -238,7 +257,11 @@ export function useIndexer(): IndexerHook {
       authorized = true;
       const updatedListings = prev.listings.map((l) => {
         if (l.datasetId === cleanId) {
-          return { ...l, isActive: !l.isActive };
+          return {
+            ...l,
+            isActive: !l.isActive,
+            sellerAddress: l.sellerAddress || (callerAddress ?? undefined),
+          };
         }
         return l;
       });
@@ -261,13 +284,31 @@ export function useIndexer(): IndexerHook {
       const target = prev.listings.find((l) => l.datasetId === cleanId);
       if (!target) return prev;
 
-      if (callerAddress && target.providerCommit) {
+      if (callerAddress) {
         const cleanCaller = callerAddress.trim().toLowerCase();
-        const cleanProvider = target.providerCommit.trim().toLowerCase();
+        const cleanProvider = (target.providerCommit || '').trim().toLowerCase();
+        const cleanSeller = (target.sellerAddress || '').trim().toLowerCase();
+
+        let isTxOwner = false;
+        try {
+          const rawTxns = localStorage.getItem(`nocturne_txns_${callerAddress}`) || localStorage.getItem(`datavault_txns_${callerAddress}`);
+          if (rawTxns) {
+            const txns = JSON.parse(rawTxns);
+            if (Array.isArray(txns)) {
+              isTxOwner = txns.some((t: any) => t.type === 'registered' && (t.datasetId === cleanId || t.datasetId === `0x${cleanId}`));
+            }
+          }
+        } catch {}
+
         const isAuth =
+          !target.sellerAddress ||
+          cleanSeller.length === 0 ||
+          cleanSeller === cleanCaller ||
           cleanProvider === cleanCaller ||
           cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '');
+          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
+          isTxOwner;
+
         if (!isAuth) {
           console.warn('[useIndexer] Unauthorized attempt to remove dataset by', callerAddress);
           return prev;
