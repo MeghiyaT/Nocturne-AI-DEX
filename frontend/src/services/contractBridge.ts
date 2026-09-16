@@ -120,11 +120,19 @@ export class ContractBridge {
    * Attempt to initialize Midnight SDK providers for browser use.
    */
   private async initSdkProviders(): Promise<void> {
-    // Dynamic imports so the app doesn't crash if SDK packages aren't installed
-    const contractsPkg: any = await import('@midnight-ntwrk/midnight-js-contracts').catch(() => null);
-    const compactJsPkg: any = await import('@midnight-ntwrk/midnight-js-protocol/compact-js' as any).catch(() => null);
-    const proofPkg: any = await import('@midnight-ntwrk/midnight-js-http-client-proof-provider').catch(() => null);
-    const indexerPkg: any = await import('@midnight-ntwrk/midnight-js-indexer-public-data-provider').catch(() => null);
+    // Dynamic runtime imports so bundlers and TypeScript compiler don't fail in environments where Node SDK packages are not installed
+    const loadDynamicPkg = async (pkgName: string): Promise<any> => {
+      try {
+        return await (Function('m', 'return import(m)')(pkgName));
+      } catch {
+        return null;
+      }
+    };
+
+    const contractsPkg: any = await loadDynamicPkg('@midnight-ntwrk/midnight-js-contracts');
+    const compactJsPkg: any = await loadDynamicPkg('@midnight-ntwrk/midnight-js-protocol/compact-js');
+    const proofPkg: any = await loadDynamicPkg('@midnight-ntwrk/midnight-js-http-client-proof-provider');
+    const indexerPkg: any = await loadDynamicPkg('@midnight-ntwrk/midnight-js-indexer-public-data-provider');
 
     if (!contractsPkg || !compactJsPkg || !proofPkg || !indexerPkg) {
       throw new Error('Midnight SDK client libraries not available in current environment');
