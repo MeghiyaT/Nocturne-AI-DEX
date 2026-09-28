@@ -8,7 +8,9 @@ import {
   CONTRACT_ADDRESS,
   INDEXER_POLL_MS,
   INDEXER_FETCH_TIMEOUT_MS,
+  TARGET_NETWORK,
 } from '../config';
+import { normalizeNetwork, detectNetworkFromAddress } from './useMidnight';
 
 export interface DataListing {
   datasetId: string;         // 32-byte hex ID
@@ -39,15 +41,22 @@ export interface RegistryState {
   lastSyncedAt: Date;
 }
 
-const LOCAL_STORAGE_KEY = 'nocturne_registered_datasets';
-const VERIFIED_STORAGE_KEY = 'nocturne_verified_count';
+const NETWORK_TAG = normalizeNetwork(TARGET_NETWORK) || 'preprod';
+const LOCAL_STORAGE_KEY = `nocturne_registered_datasets_${NETWORK_TAG}`;
+const VERIFIED_STORAGE_KEY = `nocturne_verified_count_${NETWORK_TAG}`;
 
 function getLocalListings(): DataListing[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.filter((l) => {
+          if (!l.sellerAddress) return true;
+          const net = detectNetworkFromAddress(l.sellerAddress);
+          return !net || net === NETWORK_TAG;
+        });
+      }
     }
   } catch {}
   return [];
@@ -55,7 +64,12 @@ function getLocalListings(): DataListing[] {
 
 function saveLocalListings(listings: DataListing[]) {
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(listings));
+    const filtered = listings.filter((l) => {
+      if (!l.sellerAddress) return true;
+      const net = detectNetworkFromAddress(l.sellerAddress);
+      return !net || net === NETWORK_TAG;
+    });
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(filtered));
   } catch (e: any) {
     if (e?.name === 'QuotaExceededError' || e?.code === 22) {
       try {

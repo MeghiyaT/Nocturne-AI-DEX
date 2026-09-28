@@ -131,6 +131,7 @@ export type WalletState =
     balance: string;
     rawBalance: number;
     network: string;
+    isNetworkMismatch?: boolean;
     walletType: WalletType;
     connectorName: string;
     iconUrl?: string;
@@ -144,6 +145,7 @@ export interface MidnightHook {
   disconnect: () => void;
   clearError: () => void;
   targetNetwork: string;
+  isNetworkMismatch: boolean;
   isLaceAvailable: boolean;
   is1amAvailable: boolean;
   laceIcon?: string;
@@ -319,30 +321,118 @@ async function getWalletAddressFromApi(api: any): Promise<string> {
   return '';
 }
 
+export function normalizeNetwork(net: string | number | unknown): string {
+  if (typeof net === 'number') {
+    return String(net);
+  }
+  const s = String(net || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (s === 'prev' || s === 'pr' || s.includes('preview')) return 'preview';
+  if (s === 'pre' || s.includes('preprod')) return 'preprod';
+  if (s.includes('test')) return 'testnet';
+  if (s.includes('main')) return 'mainnet';
+  if (s.includes('dev') || s.includes('local') || s.includes('standalone') || s.includes('undeployed') || s.includes('und')) return 'localnet';
+  return s;
+}
+
+export function detectNetworkFromAddress(address: string): string | null {
+  if (!address) return null;
+  const clean = address.trim().toLowerCase();
+
+  // 1. Preprod (check first to avoid partial prefix overlap with 'pr')
+  if (
+    clean.includes('preprod') ||
+    clean.includes('_preprod') ||
+    clean.includes('_pre1') ||
+    clean.startsWith('mn_addr_preprod') ||
+    clean.startsWith('mn_shielded_preprod') ||
+    clean.startsWith('mn_unshielded_preprod') ||
+    clean.startsWith('mn_dust_preprod') ||
+    clean.startsWith('mn_addr_pre1') ||
+    clean.startsWith('mn_shielded_pre1') ||
+    clean.startsWith('mn_unshielded_pre1') ||
+    /^mn(?:_[a-z0-9]+)?_(?:preprod|pre)1/.test(clean)
+  ) {
+    return 'preprod';
+  }
+
+  // 2. Preview
+  if (
+    clean.includes('preview') ||
+    clean.includes('_preview') ||
+    clean.includes('_pr1') ||
+    clean.startsWith('mn_addr_preview') ||
+    clean.startsWith('mn_shielded_preview') ||
+    clean.startsWith('mn_unshielded_preview') ||
+    clean.startsWith('mn_dust_preview') ||
+    clean.startsWith('mn_addr_pr1') ||
+    clean.startsWith('mn_shielded_pr1') ||
+    clean.startsWith('mn_unshielded_pr1') ||
+    /^mn(?:_[a-z0-9]+)?_(?:preview|pr)1/.test(clean)
+  ) {
+    return 'preview';
+  }
+
+  // 3. Testnet
+  if (
+    clean.includes('testnet') ||
+    clean.includes('_test1') ||
+    clean.startsWith('mn_addr_test') ||
+    clean.startsWith('mn_shielded_test') ||
+    clean.startsWith('mn_unshielded_test') ||
+    /^mn(?:_[a-z0-9]+)?_test1/.test(clean)
+  ) {
+    return 'testnet';
+  }
+
+  // 4. Local / Undeployed
+  if (
+    clean.includes('undeployed') ||
+    clean.includes('local') ||
+    clean.includes('_und1') ||
+    clean.includes('_dev1') ||
+    clean.startsWith('mn_addr_und') ||
+    clean.startsWith('mn_addr_dev') ||
+    clean.startsWith('mn_shielded_und') ||
+    clean.startsWith('mn_shielded_dev')
+  ) {
+    return 'localnet';
+  }
+
+  // 5. Mainnet (no network discriminator in Bech32 prefix, e.g. mn_addr1...)
+  if (
+    clean.includes('mainnet') ||
+    clean.startsWith('mn_addr1') ||
+    clean.startsWith('mn_shielded1') ||
+    clean.startsWith('mn_unshielded1')
+  ) {
+    return 'mainnet';
+  }
+
+  return null;
+}
+
 // Dynamically determine the active network from the wallet API or address format
 async function extractWalletNetwork(api: any, address: string): Promise<string> {
+  // Query API first if available, as wallet connector has explicit network configuration
   if (api) {
     try {
-      const status = await resolveValue(() => api.getConnectionStatus?.());
-      if (status?.networkId) return String(status.networkId).toLowerCase();
+      const config = await resolveValue(() => api.getConfiguration?.());
+      if (config?.networkId) return normalizeNetwork(config.networkId);
     } catch { }
     try {
-      const config = await resolveValue(() => api.getConfiguration?.());
-      if (config?.networkId) return String(config.networkId).toLowerCase();
+      const status = await resolveValue(() => api.getConnectionStatus?.());
+      if (status?.networkId) return normalizeNetwork(status.networkId);
     } catch { }
     try {
       const net = await resolveValue(() => api.getNetworkId?.());
-      if (net) return String(net).toLowerCase();
+      if (net !== undefined && net !== null) return normalizeNetwork(net);
     } catch { }
   }
-  if (address) {
-    const lower = address.toLowerCase();
-    if (lower.includes('preview')) return 'preview';
-    if (lower.includes('preprod')) return 'preprod';
-    if (lower.includes('test')) return 'testnet';
-    if (lower.includes('mainnet')) return 'mainnet';
-    if (lower.includes('local') || lower.includes('undeployed')) return 'undeployed';
-  }
+
+  // Fallback to address HRP discriminator inspection
+  const addrNet = detectNetworkFromAddress(address);
+  if (addrNet) return addrNet;
+
   return TARGET_NETWORK;
 }
 
@@ -509,6 +599,10 @@ export function useMidnight(): MidnightHook {
   }, []);
 
   const [lastAttemptedWallet, setLastAttemptedWallet] = useState<WalletType | null>(null);
+  const walletStateRef = useRef(walletState);
+  walletStateRef.current = walletState;
+  const userDisconnectedRef = useRef(false);
+  const hasAutoConnectedRef = useRef(false);
 
   const clearSwitchNotification = useCallback(() => {
     setSwitchNotification(null);
@@ -516,10 +610,17 @@ export function useMidnight(): MidnightHook {
 
   const connect = useCallback(
     async (type: WalletType = '1am', isAutoConnect = false): Promise<boolean> => {
+      if (isAutoConnect && userDisconnectedRef.current) {
+        return false;
+      }
+      if (!isAutoConnect) {
+        userDisconnectedRef.current = false;
+      }
+
       setLastAttemptedWallet(type);
       const info = type === '1am' ? get1amConnectorInfo() : getLaceConnectorInfo();
       const walletLabel = type === '1am' ? '1AM Wallet' : 'Lace';
-      const isCurrentlyConnected = walletState.status === 'connected';
+      const isCurrentlyConnected = walletStateRef.current.status === 'connected';
 
       // If switching wallet while already connected, perform non-destructive switch:
       if (isCurrentlyConnected) {
@@ -567,6 +668,17 @@ export function useMidnight(): MidnightHook {
 
         // Success: extract active network & balance
         const activeNetwork = await extractWalletNetwork(api, realAddr);
+        const normActive = normalizeNetwork(activeNetwork);
+        const normTarget = normalizeNetwork(TARGET_NETWORK);
+        const isMismatch = !!(normActive && normTarget && normActive !== normTarget);
+
+        if (isMismatch) {
+          setSwitchNotification(
+            `Network Warning: ${walletLabel} is currently set to "${activeNetwork.toUpperCase()}", but Nocturne DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
+          );
+        } else {
+          setSwitchNotification(null);
+        }
 
         try {
           localStorage.setItem(type === '1am' ? ONEAM_ADDRESS_KEY : LACE_ADDRESS_KEY, realAddr);
@@ -584,13 +696,13 @@ export function useMidnight(): MidnightHook {
             .forEach((k) => localStorage.removeItem(k));
         } catch { }
 
-        setSwitchNotification(null);
         setWalletState({
           status: 'connected',
           address: realAddr,
           balance: formatted,
           rawBalance: raw,
           network: activeNetwork,
+          isNetworkMismatch: isMismatch,
           walletType: type,
           connectorName: walletLabel,
           iconUrl: info?.icon,
@@ -624,12 +736,13 @@ export function useMidnight(): MidnightHook {
         }
       }
     },
-    [walletState.status]
+    []
   );
 
   // Auto-detect and auto-retry on window focus (e.g. when user unlocks extension in browser toolbar)
   useEffect(() => {
     const handleFocus = () => {
+      if (userDisconnectedRef.current) return;
       // If we were in an error/locked state and user just refocused the tab after unlocking their wallet
       if (walletState.status === 'error' && lastAttemptedWallet) {
         connect(lastAttemptedWallet, false).catch(() => { });
@@ -639,8 +752,12 @@ export function useMidnight(): MidnightHook {
     return () => window.removeEventListener('focus', handleFocus);
   }, [walletState.status, lastAttemptedWallet, connect]);
 
-  // Auto reconnect on page mount (silent)
+  // Auto reconnect on page mount (silent) — runs once on mount
   useEffect(() => {
+    if (hasAutoConnectedRef.current) return;
+    hasAutoConnectedRef.current = true;
+    if (userDisconnectedRef.current) return;
+
     const lastWallet = (localStorage.getItem(LAST_WALLET_KEY) || localStorage.getItem('datavault_last_wallet')) as WalletType | null;
     if (lastWallet && (lastWallet === 'lace' || lastWallet === '1am')) {
       const key = lastWallet === 'lace' ? LACE_ADDRESS_KEY : ONEAM_ADDRESS_KEY;
@@ -662,10 +779,28 @@ export function useMidnight(): MidnightHook {
   }, [connect]);
 
   const disconnect = useCallback(() => {
-    apiRef.current = null;
+    userDisconnectedRef.current = true;
+    setLastAttemptedWallet(null);
+
+    if (apiRef.current) {
+      if (typeof apiRef.current.disconnect === 'function') {
+        try { apiRef.current.disconnect(); } catch { }
+      }
+      if (typeof apiRef.current.disable === 'function') {
+        try { apiRef.current.disable(); } catch { }
+      }
+      apiRef.current = null;
+    }
+
     try {
       localStorage.removeItem(LAST_WALLET_KEY);
+      localStorage.removeItem('datavault_last_wallet');
+      localStorage.removeItem(ONEAM_ADDRESS_KEY);
+      localStorage.removeItem(LACE_ADDRESS_KEY);
+      localStorage.removeItem('datavault_1am_address');
+      localStorage.removeItem('datavault_lace_address');
     } catch { }
+
     setSwitchNotification(null);
     setWalletState({ status: 'idle' });
   }, []);
@@ -722,97 +857,214 @@ export function useMidnight(): MidnightHook {
     if (apiRef.current && walletStatus === 'connected') {
       try {
         const { formatted, raw } = await fetchWalletBalance(apiRef.current);
+        const currentNetwork =
+          walletState.status === 'connected'
+            ? await extractWalletNetwork(apiRef.current, walletState.address)
+            : TARGET_NETWORK;
+        const normActive = normalizeNetwork(currentNetwork);
+        const normTarget = normalizeNetwork(TARGET_NETWORK);
+        const isMismatch = !!(normActive && normTarget && normActive !== normTarget);
+
         setWalletState((prev) => {
           if (prev.status !== 'connected') return prev;
           return {
             ...prev,
             rawBalance: raw,
             balance: formatted,
+            network: currentNetwork,
+            isNetworkMismatch: isMismatch,
           };
         });
       } catch (err) {
         console.warn('[useMidnight] refreshBalance error:', err);
       }
     }
-  }, [walletStatus]);
+  }, [walletStatus, walletState]);
 
   const signAndSubmitPurchaseTx = useCallback(
-    async (recipientAddress: string, amountNight: number, datasetName: string) => {
+    async (recipientAddress: string, amountNight: number, _datasetName: string) => {
       if (walletState.status !== 'connected' || !walletState.address) {
         throw new Error('Wallet not connected');
       }
 
       const api = apiRef.current;
+      if (!api) {
+        throw new Error('Wallet connector API is not available. Please reconnect your wallet.');
+      }
+
+      // Network validation guard for both 1AM and Lace
+      const currentNetwork = await extractWalletNetwork(api, walletState.address);
+      const normalizedCurrent = normalizeNetwork(currentNetwork);
+      const normalizedTarget = normalizeNetwork(TARGET_NETWORK);
+
+      if (normalizedCurrent && normalizedTarget && normalizedCurrent !== normalizedTarget) {
+        throw new Error(
+          `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne DEX is targeting "${TARGET_NETWORK.toUpperCase()}". ` +
+          `Please switch your network in ${walletState.connectorName} settings to ${TARGET_NETWORK.toUpperCase()} before purchasing.`
+        );
+      }
+
+      const trimmedRecipient = (recipientAddress || '').trim();
+      if (!trimmedRecipient) {
+        throw new Error('Recipient address is missing for this dataset listing.');
+      }
+
+      // If the seller address is an identity commitment hash (0x...) rather than a transfer address
+      if (trimmedRecipient.startsWith('0x') && trimmedRecipient.length <= 66) {
+        throw new Error(
+          `Cannot transfer to provider identity commitment (${trimmedRecipient.slice(0, 10)}...). ` +
+          `The seller must provide a valid Midnight transfer address (e.g. mn_addr...).`
+        );
+      }
+
       let txHash = '';
       let promptShown = false;
+      let lastTransferError: Error | null = null;
 
-      // 1. Try native wallet connector transfer / transaction methods
-      if (api) {
+      // 1. Midnight DApp Connector v4: makeTransfer
+      if (typeof api.makeTransfer === 'function') {
+        const microUnits = BigInt(Math.max(1, Math.round(amountNight * 1_000_000)));
+        let res: any = null;
+
+        const nativeTokenType = '0000000000000000000000000000000000000000000000000000000000000000';
+        const is1am = walletState.walletType === '1am' || (api && (api.is1am || api.name?.toLowerCase().includes('1am')));
+
+        // 1AM wallet strictly requires: recipient (string), type (string), value (string | number), kind ('unshielded' | 'shielded')
+        // Lace / Midnight standard connector uses: recipient, type, tokenType, value, kind
+        const transferPayload: any[] = [
+          {
+            kind: 'unshielded',
+            type: nativeTokenType,
+            tokenType: nativeTokenType,
+            value: is1am ? microUnits.toString() : microUnits,
+            recipient: trimmedRecipient,
+          },
+        ];
+
+        try {
+          res = await withTimeout<any>(
+            api.makeTransfer(transferPayload),
+            180000,
+            null
+          );
+        } catch (innerErr: any) {
+          const msg = (innerErr?.message || '').toLowerCase();
+          if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied') || innerErr?.code === 4001) {
+            throw new Error('Transaction was cancelled in your wallet extension.');
+          }
+          if (msg.includes('duplicate request') || msg.includes('already pending')) {
+            throw new Error('A transfer request is already pending in your 1AM wallet. Please click on "MAKE TRANSFER" under TRANSACTIONS in your wallet extension to approve or cancel it.');
+          }
+          lastTransferError = innerErr instanceof Error ? innerErr : new Error(String(innerErr?.message || innerErr));
+
+          // Retry with alternate value representation (string vs bigint)
+          try {
+            const alternatePayload: any[] = [
+              {
+                kind: 'unshielded',
+                type: nativeTokenType,
+                tokenType: nativeTokenType,
+                value: is1am ? microUnits : microUnits.toString(),
+                recipient: trimmedRecipient,
+              },
+            ];
+            res = await withTimeout<any>(
+              api.makeTransfer(alternatePayload),
+              180000,
+              null
+            );
+            lastTransferError = null;
+          } catch (retryErr: any) {
+            const retryMsg = (retryErr?.message || '').toLowerCase();
+            if (retryMsg.includes('reject') || retryMsg.includes('cancel') || retryMsg.includes('denied') || retryErr?.code === 4001) {
+              throw new Error('Transaction was cancelled in your wallet extension.');
+            }
+            if (retryMsg.includes('duplicate request') || retryMsg.includes('already pending')) {
+              throw new Error('A transfer request is already pending in your 1AM wallet. Please click on "MAKE TRANSFER" under TRANSACTIONS in your wallet extension to approve or cancel it.');
+            }
+            lastTransferError = retryErr instanceof Error ? retryErr : new Error(String(retryErr?.message || retryErr));
+            console.error('[useMidnight] makeTransfer failed:', retryErr);
+          }
+        }
+
+        if (res) {
+          promptShown = true;
+          const candidate =
+            typeof res === 'string'
+              ? res
+              : res.txHash || res.txId || res.hash || res.id || res.transactionHash || (typeof res.tx === 'string' ? res.tx : '');
+
+          // Submit transaction if wallet returns a prepared / balanced tx that needs submission
+          const txToSubmit = (res && typeof res === 'object') ? (res.tx || res.transaction || res) : res;
+          if (txToSubmit && typeof api.submitTransaction === 'function') {
+            try {
+              const submitRes = await api.submitTransaction(txToSubmit);
+              if (submitRes) {
+                const subCandidate =
+                  typeof submitRes === 'string'
+                    ? submitRes
+                    : submitRes.txHash || submitRes.txId || submitRes.hash || submitRes.id || submitRes.transactionHash;
+                if (subCandidate) {
+                  txHash = subCandidate;
+                }
+              }
+            } catch (subErr: any) {
+              console.error('[useMidnight] submitTransaction failed:', subErr);
+              throw new Error(`Transaction submission to Midnight network failed: ${subErr?.message || subErr}`);
+            }
+          }
+
+          if (!txHash && candidate) {
+            txHash = candidate;
+          }
+        } else if (lastTransferError) {
+          throw new Error(`Wallet transaction failed: ${lastTransferError.message}`);
+        }
+      }
+
+      // 2. Legacy / alternate transfer methods (only if makeTransfer was not available)
+      if (!txHash && typeof api.makeTransfer !== 'function') {
         const transferMethods = [
-          () => api.transfer?.({ to: recipientAddress, recipient: recipientAddress, amount: amountNight, coinType: 'tNIGHT' }),
-          () => api.sendTransaction?.({ to: recipientAddress, recipient: recipientAddress, amount: amountNight, currency: 'tNIGHT' }),
-          () => api.send?.({ to: recipientAddress, amount: amountNight }),
-          () => api.transferTokens?.(recipientAddress, amountNight),
+          () => api.transfer?.({ to: trimmedRecipient, recipient: trimmedRecipient, amount: amountNight, coinType: 'tNIGHT' }),
+          () => api.sendTransaction?.({ to: trimmedRecipient, recipient: trimmedRecipient, amount: amountNight, currency: 'tNIGHT' }),
+          () => api.send?.({ to: trimmedRecipient, amount: amountNight }),
+          () => api.transferTokens?.(trimmedRecipient, amountNight),
         ];
 
         for (const fn of transferMethods) {
           try {
-            const res = await resolveValue(fn, 15000);
-            if (res) {
-              promptShown = true;
-              if (typeof res === 'string') txHash = res;
-              else if (res.txId || res.txHash || res.id || res.hash) txHash = res.txId || res.txHash || res.id || res.hash;
-              break;
-            }
-          } catch (e: any) {
-            console.warn('[useMidnight] transfer method failed/rejected:', e);
-            if (e?.message?.toLowerCase().includes('reject') || e?.message?.toLowerCase().includes('cancel') || e?.code === 4001) {
-              throw new Error('Transaction was cancelled in your wallet extension.');
-            }
-          }
-        }
-
-        // 2. Request authorization signature if transfer isn't exposed directly
-        if (!txHash) {
-          const signMethods = [
-            () => {
-              const enc = new TextEncoder();
-              const payloadHex = Array.from(enc.encode(`Nocturne AI Dataset License Acquisition: ${datasetName} for ${amountNight} tNIGHT to ${recipientAddress}`))
-                .map((b) => b.toString(16).padStart(2, '0'))
-                .join('');
-              return api.signData?.(walletState.address, payloadHex);
-            },
-            () => api.sign?.(walletState.address, `Nocturne AI: Buy ${datasetName} (${amountNight} tNIGHT)`),
-          ];
-
-          for (const fn of signMethods) {
-            try {
-              const res = await resolveValue(fn, 15000);
+            const maybePromise = fn();
+            if (maybePromise && typeof maybePromise.then === 'function') {
+              const res: any = await withTimeout<any>(maybePromise, 30000, null);
               if (res) {
                 promptShown = true;
-                if (typeof res === 'string') txHash = res.startsWith('0x') ? res : `0x${res}`;
-                else if (res.signature || res.txHash || res.key) txHash = res.signature || res.txHash || res.key;
+                if (typeof res === 'string') txHash = res;
+                else if (res.txId || res.txHash || res.id || res.hash) txHash = res.txId || res.txHash || res.id || res.hash;
                 break;
               }
-            } catch (e: any) {
-              console.warn('[useMidnight] signData method failed/rejected:', e);
-              if (e?.message?.toLowerCase().includes('reject') || e?.message?.toLowerCase().includes('cancel') || e?.code === 4001) {
-                throw new Error('Transaction authorization was cancelled in your wallet extension.');
-              }
             }
+          } catch (e: any) {
+            const msg = (e?.message || '').toLowerCase();
+            if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied') || e?.code === 4001) {
+              throw new Error('Transaction was cancelled in your wallet extension.');
+            }
+            throw new Error(`Transfer failed: ${e?.message || e}`);
           }
         }
       }
 
-      // No successful transfer or signing — refuse to fabricate a hash.
-      // C2 fix: Previously generated a synthetic SHA-256 hash here, giving
-      // users a fake "receipt" while no actual funds moved on-chain.
+      // Reject non-transfer fallback: message signing (signData) is NOT a payment
       if (!txHash) {
         throw new Error(
-          'Your wallet does not support on-chain tNIGHT transfers via the browser DApp connector. ' +
-          'Use the Nocturne CLI (npm run cli) to transfer tokens directly.',
+          'On-chain tNIGHT transfer was not completed by your wallet extension. ' +
+          'Please ensure your wallet has sufficient tNIGHT, active DUST status, and that the transaction was confirmed.'
         );
       }
+
+      // Refresh balance after successful transfer
+      try {
+        await refreshBalance();
+      } catch {}
 
       return {
         success: true,
@@ -820,8 +1072,16 @@ export function useMidnight(): MidnightHook {
         promptShown,
       };
     },
-    [walletState]
+    [walletState, refreshBalance]
   );
+
+  const isNetworkMismatch =
+    walletState.status === 'connected' &&
+    !!(
+      normalizeNetwork(walletState.network) &&
+      normalizeNetwork(TARGET_NETWORK) &&
+      normalizeNetwork(walletState.network) !== normalizeNetwork(TARGET_NETWORK)
+    );
 
   return {
     walletState,
@@ -829,6 +1089,7 @@ export function useMidnight(): MidnightHook {
     disconnect,
     clearError,
     targetNetwork: TARGET_NETWORK,
+    isNetworkMismatch,
     isLaceAvailable,
     is1amAvailable,
     laceIcon,
