@@ -56,7 +56,18 @@ function getLocalListings(): DataListing[] {
 function saveLocalListings(listings: DataListing[]) {
   try {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(listings));
-  } catch {}
+  } catch (e: any) {
+    if (e?.name === 'QuotaExceededError' || e?.code === 22) {
+      try {
+        // Strip large payloads to preserve listing metadata under 5MB localStorage quota
+        const pruned = listings.map((l) => ({
+          ...l,
+          downloadPayload: l.downloadPayload && l.downloadPayload.length > 10000 ? '[Stored on provider node]' : l.downloadPayload,
+        }));
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pruned));
+      } catch {}
+    }
+  }
 }
 
 const STATE_QUERY = `
@@ -72,6 +83,7 @@ const STATE_QUERY = `
                 providerCommit
                 dataCommitment
                 datasetName
+                category
                 datasetSize
                 rowCount
                 license
@@ -180,7 +192,9 @@ export function useIndexer(): IndexerHook {
           if (v && !isNaN(Number(v))) currentVerified = Number(v);
         } catch {}
 
-        const finalVerified = Math.max(res?.verifiedCount ?? 0, currentVerified);
+        // M10 fix: Always prefer on-chain verified count. The local value
+        // from localStorage can be tampered with via DevTools.
+        const finalVerified = res !== null ? (res.verifiedCount ?? 0) : currentVerified;
 
         setState({
           verifiedCount: finalVerified,
@@ -215,6 +229,11 @@ export function useIndexer(): IndexerHook {
     });
   }, []);
 
+  // ⚠ WARNING (C5): This authorization check is UI-only and runs entirely in
+  // the browser. It is trivially bypassable via DevTools. Real authorization
+  // must go through the smart contract's setActive / delistDataset circuits
+  // which verify the caller's providerCommit against the on-chain record.
+  // This client-side check only prevents accidental misuse in the UI.
   const toggleArchiveListing = useCallback((datasetId: string, callerAddress?: string | null): boolean => {
     const cleanId = datasetId.startsWith('0x') ? datasetId.slice(2) : datasetId;
     let authorized = false;
@@ -240,18 +259,20 @@ export function useIndexer(): IndexerHook {
         } catch {}
 
         const isAuth =
-          !target.sellerAddress ||
-          cleanSeller.length === 0 ||
-          cleanSeller === cleanCaller ||
-          cleanProvider === cleanCaller ||
-          cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          isTxOwner;
+          cleanSeller.length > 0
+            ? cleanSeller === cleanCaller
+            : (cleanProvider.length > 0 && cleanProvider === cleanCaller) ||
+              (cleanProvider.length > 0 && cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')) ||
+              (cleanProvider.length > 0 && cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')) ||
+              isTxOwner;
 
         if (!isAuth) {
           console.warn('[useIndexer] Unauthorized attempt to archive dataset by', callerAddress);
           return prev;
         }
+      } else {
+        // Unauthenticated callers cannot archive
+        return prev;
       }
 
       authorized = true;
@@ -276,6 +297,8 @@ export function useIndexer(): IndexerHook {
     return authorized;
   }, []);
 
+  // ⚠ WARNING (C5): Same client-side-only auth limitation as toggleArchiveListing.
+  // Real removal authorization is enforced on-chain by the delistDataset circuit.
   const removeListing = useCallback((datasetId: string, callerAddress?: string | null): boolean => {
     const cleanId = datasetId.startsWith('0x') ? datasetId.slice(2) : datasetId;
     let authorized = false;
@@ -301,18 +324,20 @@ export function useIndexer(): IndexerHook {
         } catch {}
 
         const isAuth =
-          !target.sellerAddress ||
-          cleanSeller.length === 0 ||
-          cleanSeller === cleanCaller ||
-          cleanProvider === cleanCaller ||
-          cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '') ||
-          isTxOwner;
+          cleanSeller.length > 0
+            ? cleanSeller === cleanCaller
+            : (cleanProvider.length > 0 && cleanProvider === cleanCaller) ||
+              (cleanProvider.length > 0 && cleanProvider === cleanCaller.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')) ||
+              (cleanProvider.length > 0 && cleanCaller === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')) ||
+              isTxOwner;
 
         if (!isAuth) {
           console.warn('[useIndexer] Unauthorized attempt to remove dataset by', callerAddress);
           return prev;
         }
+      } else {
+        // Unauthenticated callers cannot remove
+        return prev;
       }
 
       authorized = true;

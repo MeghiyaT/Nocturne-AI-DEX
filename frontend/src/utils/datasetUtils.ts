@@ -56,6 +56,9 @@ export function chunkBytesBrowser(content: Uint8Array, count: number): Uint8Arra
 export async function datasetSlicesFromBytesBrowser(
   content: Uint8Array,
 ): Promise<Uint8Array[]> {
+  if (content.length === 0) {
+    throw new Error('Cannot compute dataset slices from empty content');
+  }
   const chunks = chunkBytesBrowser(content, SLICE_COUNT);
   const slices = await Promise.all(
     chunks.map(async (chunk) => {
@@ -157,4 +160,55 @@ export class BrowserDatasetStore {
   size(): number {
     return this.slicesByHex.size;
   }
+}
+
+// ─── Ownership Verification ────────────────────────────────────────────────
+
+export interface ListingOwnershipContext {
+  sellerAddress?: string | null;
+  providerCommit?: string | null;
+  datasetId?: string | null;
+}
+
+/**
+ * Robust check to determine if the currently connected wallet owns a dataset listing.
+ *
+ * Rules:
+ * 1. If sellerAddress is recorded, it is authoritative. If it doesn't match walletAddress,
+ *    the caller is NOT the owner (even if they registered another dataset with the same name).
+ * 2. If sellerAddress is not recorded (e.g. on-chain indexer raw state), fallback to matching
+ *    providerCommit or local transaction registration history.
+ */
+export function isListingOwner(
+  listing: ListingOwnershipContext,
+  walletAddress?: string | null,
+  registeredDatasetIds?: Set<string>
+): boolean {
+  if (!walletAddress) return false;
+  const cleanWallet = walletAddress.trim().toLowerCase();
+
+  const cleanSeller = (listing.sellerAddress || '').trim().toLowerCase();
+  if (cleanSeller.length > 0) {
+    return cleanSeller === cleanWallet;
+  }
+
+  // Fallback for listings without an explicit sellerAddress (e.g. raw on-chain state)
+  const cleanProvider = (listing.providerCommit || '').trim().toLowerCase();
+  const cleanWithoutPrefix = cleanWallet.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '');
+
+  const isProviderMatch =
+    cleanProvider.length > 0 &&
+    (cleanProvider === cleanWallet ||
+      cleanProvider === cleanWithoutPrefix ||
+      cleanWallet === cleanProvider.replace(/^mn_addr(?:_[a-z0-9]+)?1/, ''));
+
+  const isTxMatch = Boolean(
+    listing.datasetId &&
+      registeredDatasetIds &&
+      (registeredDatasetIds.has(listing.datasetId) ||
+        registeredDatasetIds.has(listing.datasetId.replace(/^0x/, '')) ||
+        registeredDatasetIds.has(`0x${listing.datasetId.replace(/^0x/, '')}`))
+  );
+
+  return isProviderMatch || isTxMatch;
 }

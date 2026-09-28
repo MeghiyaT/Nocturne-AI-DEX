@@ -26,46 +26,37 @@ export interface OnChainProofResult {
  */
 export async function checkProofServerStatus(): Promise<ProofServerStatus> {
   const startTime = performance.now();
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const resp = await fetch(PROOF_SERVER_URL, {
-      method: 'GET',
-      mode: 'cors',
-      signal: controller.signal,
-    }).catch(async () => {
-      // Fallback probe with HEAD
-      return await fetch(PROOF_SERVER_URL, {
-        method: 'HEAD',
-        mode: 'cors',
-        signal: controller.signal,
+  // M6 fix: Try GET first, then HEAD with separate AbortSignal per attempt.
+  // M8 fix: Use 'no-cors' for HEAD fallback to handle CORS-restricted servers.
+  for (const method of ['GET', 'HEAD'] as const) {
+    try {
+      const resp = await fetch(PROOF_SERVER_URL, {
+        method,
+        mode: method === 'GET' ? 'cors' : 'no-cors',
+        signal: AbortSignal.timeout(3000),
       });
-    });
 
-    clearTimeout(timeoutId);
-    const latencyMs = Math.round(performance.now() - startTime);
+      const latencyMs = Math.round(performance.now() - startTime);
 
-    if (resp && (resp.ok || resp.status < 500)) {
-      return {
-        isOnline: true,
-        url: PROOF_SERVER_URL,
-        latencyMs,
-      };
+      // An opaque response (from no-cors) indicates the server is reachable
+      if (resp && (resp.ok || resp.status < 500 || resp.type === 'opaque')) {
+        return {
+          isOnline: true,
+          url: PROOF_SERVER_URL,
+          latencyMs,
+        };
+      }
+    } catch {
+      // Try next method
     }
-
-    return {
-      isOnline: false,
-      url: PROOF_SERVER_URL,
-      error: `Proof server returned HTTP ${resp?.status || 'network error'}`,
-    };
-  } catch (err: any) {
-    return {
-      isOnline: false,
-      url: PROOF_SERVER_URL,
-      error: err?.message || 'Proof Server is offline or unreachable.',
-    };
   }
+
+  return {
+    isOnline: false,
+    url: PROOF_SERVER_URL,
+    error: 'Proof Server is offline or unreachable.',
+  };
 }
 
 /**

@@ -57,12 +57,14 @@ export function useContractBridge(
   const [error, setError] = useState<string | null>(null);
   const initAttemptedRef = useRef(false);
   const prevAddressRef = useRef<string | null>(null);
+  const bridgeReadyRef = useRef(false);
+  bridgeReadyRef.current = bridgeReady;
 
   // Initialize bridge when wallet connects
   useEffect(() => {
     if (!walletApi || !walletAddress) {
       // Wallet disconnected — tear down
-      if (bridgeReady) {
+      if (bridgeReadyRef.current) {
         resetContractBridge();
         setBridgeReady(false);
         setBridgeState({
@@ -99,7 +101,7 @@ export function useContractBridge(
         contractAddress: '',
       });
     });
-  }, [walletApi, walletAddress, bridgeReady]);
+  }, [walletApi, walletAddress]);
 
   // Also initialize without wallet (for proof server status check)
   useEffect(() => {

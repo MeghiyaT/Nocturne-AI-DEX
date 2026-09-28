@@ -510,18 +510,6 @@ export function useMidnight(): MidnightHook {
 
   const [lastAttemptedWallet, setLastAttemptedWallet] = useState<WalletType | null>(null);
 
-  // Auto-detect and auto-retry on window focus (e.g. when user unlocks extension in browser toolbar)
-  useEffect(() => {
-    const handleFocus = () => {
-      // If we were in an error/locked state and user just refocused the tab after unlocking their wallet
-      if (walletState.status === 'error' && lastAttemptedWallet) {
-        connect(lastAttemptedWallet, false).catch(() => { });
-      }
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [walletState.status, lastAttemptedWallet]);
-
   const clearSwitchNotification = useCallback(() => {
     setSwitchNotification(null);
   }, []);
@@ -639,6 +627,18 @@ export function useMidnight(): MidnightHook {
     [walletState.status]
   );
 
+  // Auto-detect and auto-retry on window focus (e.g. when user unlocks extension in browser toolbar)
+  useEffect(() => {
+    const handleFocus = () => {
+      // If we were in an error/locked state and user just refocused the tab after unlocking their wallet
+      if (walletState.status === 'error' && lastAttemptedWallet) {
+        connect(lastAttemptedWallet, false).catch(() => { });
+      }
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [walletState.status, lastAttemptedWallet, connect]);
+
   // Auto reconnect on page mount (silent)
   useEffect(() => {
     const lastWallet = (localStorage.getItem(LAST_WALLET_KEY) || localStorage.getItem('datavault_last_wallet')) as WalletType | null;
@@ -659,7 +659,7 @@ export function useMidnight(): MidnightHook {
         });
       }
     }
-  }, []);
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     apiRef.current = null;
@@ -717,8 +717,9 @@ export function useMidnight(): MidnightHook {
     });
   }, []);
 
+  const walletStatus = walletState.status;
   const refreshBalance = useCallback(async () => {
-    if (apiRef.current && walletState.status === 'connected') {
+    if (apiRef.current && walletStatus === 'connected') {
       try {
         const { formatted, raw } = await fetchWalletBalance(apiRef.current);
         setWalletState((prev) => {
@@ -733,7 +734,7 @@ export function useMidnight(): MidnightHook {
         console.warn('[useMidnight] refreshBalance error:', err);
       }
     }
-  }, [walletState]);
+  }, [walletStatus]);
 
   const signAndSubmitPurchaseTx = useCallback(
     async (recipientAddress: string, amountNight: number, datasetName: string) => {
@@ -803,18 +804,14 @@ export function useMidnight(): MidnightHook {
         }
       }
 
-      // If wallet signature didn't generate a transaction hash, generate cryptographic ledger hash anchor
+      // No successful transfer or signing — refuse to fabricate a hash.
+      // C2 fix: Previously generated a synthetic SHA-256 hash here, giving
+      // users a fake "receipt" while no actual funds moved on-chain.
       if (!txHash) {
-        const rawSeed = `midnight:night_tx:${walletState.address}:${recipientAddress}:${amountNight}:${Date.now()}`;
-        const enc = new TextEncoder();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(rawSeed));
-        txHash = '0x' + Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
-      }
-
-      // Deduct buyer and credit seller in persistent storage
-      deductBalance(amountNight, walletState.address);
-      if (recipientAddress) {
-        creditBalance(amountNight, recipientAddress);
+        throw new Error(
+          'Your wallet does not support on-chain tNIGHT transfers via the browser DApp connector. ' +
+          'Use the Nocturne CLI (npm run cli) to transfer tokens directly.',
+        );
       }
 
       return {
@@ -823,7 +820,7 @@ export function useMidnight(): MidnightHook {
         promptShown,
       };
     },
-    [walletState, deductBalance, creditBalance]
+    [walletState]
   );
 
   return {

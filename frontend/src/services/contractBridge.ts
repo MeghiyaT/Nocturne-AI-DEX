@@ -120,10 +120,21 @@ export class ContractBridge {
    * Attempt to initialize Midnight SDK providers for browser use.
    */
   private async initSdkProviders(): Promise<void> {
-    // Dynamic runtime imports so bundlers and TypeScript compiler don't fail in environments where Node SDK packages are not installed
+    // Dynamic runtime imports so bundlers don't fail in environments where
+    // Node SDK packages are not installed.
+    // H4 fix: Uses a whitelisted map instead of Function() constructor
+    // (which is equivalent to eval() and violates CSP).
+    const SDK_PACKAGES: Record<string, true> = {
+      '@midnight-ntwrk/midnight-js-contracts': true,
+      '@midnight-ntwrk/midnight-js-protocol/compact-js': true,
+      '@midnight-ntwrk/midnight-js-http-client-proof-provider': true,
+      '@midnight-ntwrk/midnight-js-indexer-public-data-provider': true,
+    };
+
     const loadDynamicPkg = async (pkgName: string): Promise<any> => {
+      if (!(pkgName in SDK_PACKAGES)) return null;
       try {
-        return await (Function('m', 'return import(m)')(pkgName));
+        return await import(/* @vite-ignore */ pkgName);
       } catch {
         return null;
       }
@@ -296,14 +307,15 @@ export class ContractBridge {
             providerCommit: bytes32ToHex(providerCommit),
           };
         } catch (contractErr: any) {
-          console.error('[ContractBridge] On-chain registerDataset failed:', contractErr);
-          // Fall through to local-only result
+          // H7 fix: Return success:false when the on-chain call actually failed.
+          // Previously returned success:true which caused the UI to show a
+          // success toast even though nothing was registered on-chain.
           return {
-            success: true, // Locally successful, on-chain pending
+            success: false,
             datasetId: datasetIdHex,
             dataCommitment: bytes32ToHex(dataCommitment),
             providerCommit: bytes32ToHex(providerCommit),
-            error: `On-chain registration pending: ${contractErr?.message || 'Contract call failed'}. Dataset saved locally.`,
+            error: `On-chain registration failed: ${contractErr?.message || 'Contract call failed'}. Local computation saved.`,
           };
         }
       }
@@ -317,7 +329,7 @@ export class ContractBridge {
         proofServerOffline: !this.proofServerOnline,
         error: !this.proofServerOnline
           ? 'Proof server is offline. Dataset registered locally and will sync when the proof server comes online.'
-          : undefined,
+          : (!this.foundContract ? 'Direct mode: browser contract bridge not wired. Dataset saved locally.' : undefined),
       };
     } catch (err: any) {
       return {
@@ -421,11 +433,12 @@ export class ContractBridge {
 
   /**
    * Compute the provider commitment (hash of provider secret).
-   * Mirrors the Compact circuit: persistentHash(["nocturne:provider:", secret])
    *
-   * Note: We approximate this with a standard SHA-256 since persistentHash
-   * is a circuit-internal function. The actual on-chain commitment will be
-   * computed by the contract's ZK circuit.
+   * ⚠ H6 WARNING: The on-chain circuit uses persistentHash (Poseidon-based),
+   * while this browser implementation uses SHA-256. These produce DIFFERENT
+   * outputs for the same input. This local computation is only suitable for
+   * optimistic UI display — never for verifying against on-chain commitments.
+   * For true verification, use the proveIntegrity circuit via the proof server.
    */
   private async computeProviderCommit(): Promise<Uint8Array> {
     if (!this.providerSecret) throw new Error('Provider secret not initialized');
@@ -470,12 +483,13 @@ export class ContractBridge {
     const slices = await datasetSlicesFromBytesBrowser(fileContent);
     const localCommitment = await this.computeContentCommitment(slices);
     const localHex = bytes32ToHex(localCommitment);
-    const onChainClean = onChainCommitment.replace(/^0x/, '');
+    const cleanLocal = localHex.replace(/^0x/i, '').toLowerCase();
+    const cleanOnChain = onChainCommitment.replace(/^0x/i, '').toLowerCase();
 
     return {
-      matches: localHex === onChainClean,
-      localHash: localHex,
-      onChainHash: onChainClean,
+      matches: cleanLocal === cleanOnChain,
+      localHash: cleanLocal,
+      onChainHash: cleanOnChain,
     };
   }
 
