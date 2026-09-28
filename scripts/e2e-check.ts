@@ -2,7 +2,7 @@
 //
 // Assumes `npm run setup` already ran (deployment recorded in .midnight-state.json).
 // Run: npm run check:e2e
-import { WebSocket } from 'ws';
+import '../src/polyfills';
 import { resolveNetwork, getDeployment } from '../src/network';
 import { checkBalance } from '../src/check-balance';
 import { ensureContractCompiled } from '../src/contract-client';
@@ -16,8 +16,7 @@ import {
   type CliContext,
 } from '../src/cli';
 
-// @ts-expect-error Required for wallet sync
-globalThis.WebSocket = WebSocket;
+
 
 function ok(label: string): void {
   console.log(`  ✔ ${label}`);

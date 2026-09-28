@@ -74,6 +74,9 @@ export function createProviders(
 ): any {
   const envPassword = process.env.PRIVATE_STATE_PASSWORD?.trim();
   const accountId = walletCtx.unshieldedKeystore.getBech32Address().toString();
+  // NOTE: dustSecretKey is included to make the derived password unique per
+  // wallet identity. This value never leaves the local machine — it's used
+  // solely as a LevelDB encryption key for private state storage.
   const derivedHex = crypto
     .createHash('sha256')
     .update(`nocturne:privatestate:${networkConfig.networkId}:${accountId}:${walletCtx.dustSecretKey}`)

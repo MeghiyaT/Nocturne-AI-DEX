@@ -27,6 +27,7 @@ describe('wallet-state', () => {
     saveWalletState('preview', { dust: 'dust-hex' }, { cwd });
     const loaded2 = loadWalletState('preview', { cwd } as any);
     expect(JSON.stringify(loaded.shielded)).toBe(JSON.stringify(payload.shielded));
+    expect(loaded2.dust).toBe('dust-hex');
   });
 
   it('isolates state by network directory', () => {

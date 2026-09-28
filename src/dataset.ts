@@ -39,6 +39,9 @@ export function sha256Hex(input: Uint8Array): string {
 
 // 16 x 32-byte slices from raw bytes: hash of each chunk, zero-padded to 16.
 export function datasetSlicesFromBytes(content: Uint8Array): Uint8Array[] {
+  if (content.length === 0) {
+    throw new Error('Cannot compute dataset slices from empty content');
+  }
   const chunks = chunkBytes(content, SLICE_COUNT);
   const slices = chunks.map((c) => {
     const h = sha256(c);

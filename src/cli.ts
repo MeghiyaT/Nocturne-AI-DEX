@@ -9,7 +9,7 @@
 //
 // Reads the deployed address from .midnight-state.json. Owner-only operations
 // require the wallet that deployed the contract (same seed).
-import { WebSocket } from 'ws';
+import './polyfills';
 import { pathToFileURL } from 'node:url';
 import * as fs from 'node:fs';
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
@@ -25,8 +25,7 @@ import {
   sha256,
 } from './dataset';
 
-// @ts-expect-error Required for wallet sync
-globalThis.WebSocket = WebSocket;
+
 
 const PRIVATE_STATE_ID = 'nocturneState';
 
@@ -178,16 +177,31 @@ export async function readRowCount(ctx: CliContext, label: string): Promise<stri
 
 async function main(): Promise<void> {
   ensureContractCompiled();
-  const argv = process.argv.slice(2).filter((a) => !a.startsWith('-'));
-  if (argv.length === 0) {
+  const rawArgs = process.argv.slice(2);
+
+  // Separate positional arguments from flags and their values.
+  // The previous code stripped all flags before looking for flag values,
+  // so --file was silently discarded (M7 fix).
+  const positionalArgs: string[] = [];
+  const flags = new Map<string, string>();
+  for (let i = 0; i < rawArgs.length; i++) {
+    if (rawArgs[i] === '--file' && i + 1 < rawArgs.length) {
+      flags.set('--file', rawArgs[++i]);
+    } else if (rawArgs[i].startsWith('-')) {
+      continue; // skip unknown flags
+    } else {
+      positionalArgs.push(rawArgs[i]);
+    }
+  }
+
+  if (positionalArgs.length === 0) {
     console.log(help());
     return;
   }
 
-  const command = argv[0];
-  const args = argv.slice(1);
-  const flag = (name: string): string | null => flagValue(args, name);
-  const positional = args.filter((a) => a !== '--file' && args[args.indexOf(a) - 1] !== '--file');
+  const command = positionalArgs[0];
+  const positional = positionalArgs.slice(1);
+  const flag = (name: string): string | null => flags.get(name) ?? null;
 
   const ctx = await connect();
 
@@ -198,6 +212,10 @@ async function main(): Promise<void> {
         if (!label || !name || !size || !rows || !lic) {
           throw new Error('register requires: <label> <name> <sizeBytes> <rows> <license> [--file <path>]');
         }
+        // Input validation (M11)
+        if (name.length > 200) throw new Error('Dataset name must be under 200 characters');
+        if (lic.length > 100) throw new Error('License identifier must be under 100 characters');
+        if (!Number.isFinite(Number(size)) || Number(size) < 0) throw new Error('sizeBytes must be a non-negative number');
         await registerDataset(ctx, { label, name, size, rows, license: lic, file: flag('--file') ?? undefined });
         break;
       }

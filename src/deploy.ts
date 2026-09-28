@@ -1,19 +1,18 @@
 // Deploy the Nocturne AI datasetRegistry contract to a Midnight network.
 //
 // Non-interactive: scaffold → npm run setup runs straight through.
-import { WebSocket } from 'ws';
+import './polyfills';
 import { pathToFileURL } from 'node:url';
 import * as Rx from 'rxjs';
 
 // Midnight SDK imports
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
-import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment } from './network';
+import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice, recordDeployment, type NetworkConfig } from './network';
 import { createWallet, persistWalletState, unshieldedToken, type WalletContext } from './wallet';
 import { loadCompiledContract, createProviders } from './contract-client';
 import { DatasetStore, sha256, datasetStoreToSliceProvider } from './dataset';
 
-// @ts-expect-error Required for wallet sync
-globalThis.WebSocket = WebSocket;
+
 
 const PRIVATE_STATE_ID = 'nocturneState';
 
@@ -28,18 +27,12 @@ const FAUCET_POLL_MS = 10_000;
 const DUST_SETTLE_WAIT_MS = 15_000;
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { network, config: networkConfig } = resolveNetwork();
-const WALLET = getOrCreateWallet(network);
-const SEED = WALLET.seed;
-{
-  const notice = formatWalletBackupNotice(WALLET, network);
-  if (notice) console.log(notice);
-}
 
-async function waitForProofServer(maxAttempts = 60, delayMs = 2000): Promise<boolean> {
+
+async function waitForProofServer(proofServerUrl: string, maxAttempts = 60, delayMs = 2000): Promise<boolean> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await fetch(networkConfig.proofServer, {
+      await fetch(proofServerUrl, {
         method: 'GET',
         signal: AbortSignal.timeout(3000),
       });
@@ -64,9 +57,9 @@ async function waitForProofServer(maxAttempts = 60, delayMs = 2000): Promise<boo
 // wallet seed, and datasetSlices is backed by an in-memory store (unused
 // during deploy, needed later by the CLI).
 
-function deriveProviderSecret(): Uint8Array {
+function deriveProviderSecret(seed: string): Uint8Array {
   // Stable 32-byte identity secret derived from the wallet seed. Never logged.
-  const raw = Buffer.from(SEED, 'hex');
+  const raw = Buffer.from(seed, 'hex');
   const secret =
     raw.length >= 32
       ? raw.subarray(0, 32)
@@ -75,23 +68,28 @@ function deriveProviderSecret(): Uint8Array {
   return sha256(new Uint8Array(secret));
 }
 
-let compiledContract: any;
-let providers: any;
-
-async function initContract(ctx: WalletContext) {
+async function initContract(ctx: WalletContext, networkConfig: NetworkConfig, seed: string) {
   const store = new DatasetStore();
   const provider = datasetStoreToSliceProvider(store);
-  const compiled = await loadCompiledContract(provider, deriveProviderSecret());
-  compiledContract = compiled.compiledContract;
-  providers = createProviders(ctx, networkConfig);
+  const compiled = await loadCompiledContract(provider, deriveProviderSecret(seed));
+  return {
+    compiledContract: compiled.compiledContract,
+    providers: createProviders(ctx, networkConfig),
+  };
 }
 
 export async function deploy() {
+  const { network, config: networkConfig } = resolveNetwork();
+  const wallet = getOrCreateWallet(network);
+  const seed = wallet.seed;
+  {
+    const notice = formatWalletBackupNotice(wallet, network);
+    if (notice) console.log(notice);
+  }
+
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
   console.log(`║  Deploy Nocturne AI to ${network}`);
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
-
-  const seed = SEED;
 
   console.log('─── Wallet setup ───────────────────────────────────────────────\n');
   console.log('  Creating wallet...');
@@ -196,7 +194,7 @@ export async function deploy() {
 
   console.log('─── Deploy Contract ────────────────────────────────────────────\n');
   console.log('  Checking proof server...');
-  const proofServerReady = await waitForProofServer();
+  const proofServerReady = await waitForProofServer(networkConfig.proofServer);
   if (!proofServerReady) {
     console.log('\n  ❌ Proof server not responding. Run: docker compose up -d\n');
     await walletCtx.wallet.stop();
@@ -204,7 +202,7 @@ export async function deploy() {
   }
   process.stdout.write('\r  Proof server ready!                                 \n');
 
-  await initContract(walletCtx);
+  const { compiledContract, providers } = await initContract(walletCtx, networkConfig, seed);
   process.stdout.write('  Generating & settling on-chain DUST...');
   await new Promise((r) => setTimeout(r, DUST_SETTLE_WAIT_MS));
   process.stdout.write(' done.\n');

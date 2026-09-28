@@ -2,15 +2,14 @@
 //
 // Non-interactive — used by `npm run check-balance` and by the e2e check.
 // Mirrors deploy.ts's wallet bootstrap but performs no on-chain writes.
-import { WebSocket } from 'ws';
+import './polyfills';
 import { pathToFileURL } from 'node:url';
 import { resolveNetwork, getOrCreateWallet } from './network';
 import { createWallet, unshieldedToken } from './wallet';
 
 import * as Rx from 'rxjs';
 
-// @ts-expect-error Required for wallet sync
-globalThis.WebSocket = WebSocket;
+
 
 export interface BalanceReport {
   network: string;
@@ -29,8 +28,14 @@ export async function checkBalance(): Promise<BalanceReport> {
         const tn = s?.unshielded?.balances?.[unshieldedToken().raw] ?? 0n;
         return s.isSynced || tn > 0n;
       }),
+      Rx.timeout({ first: 120_000 }),
     ),
-  );
+  ).catch((err) => {
+    if (err?.name === 'TimeoutError') {
+      throw new Error('Wallet sync timed out after 120 seconds. Check network connectivity and try again.');
+    }
+    throw err;
+  });
   const address = walletCtx.unshieldedKeystore.getBech32Address();
   const tNight = state.unshielded.balances[unshieldedToken().raw] ?? 0n;
   const dust = state.dust.balance(new Date());

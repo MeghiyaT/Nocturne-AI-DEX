@@ -1,13 +1,13 @@
 // One-shot setup: compile contract if needed, ensure proof server is up, then
 // deploy to the active network. Non-interactive.
-import { WebSocket } from 'ws';
+import './polyfills';
 import { pathToFileURL } from 'node:url';
+import { spawn } from 'node:child_process';
 import { resolveNetwork, getOrCreateWallet, formatWalletBackupNotice } from './network';
 import { ensureContractCompiled } from './contract-client';
 import { deploy } from './deploy';
 
-// @ts-expect-error Required for wallet sync
-globalThis.WebSocket = WebSocket;
+
 
 /** How long (ms) to pause between proof-server reachability probes. */
 const PROOF_SERVER_RETRY_MS = 2_000;
@@ -63,7 +63,6 @@ export async function setup(): Promise<void> {
 
 async function compileNow(): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const { spawn } = require('node:child_process');
     const child = spawn('npm', ['run', 'compile'], { cwd: process.cwd(), stdio: 'inherit' });
     child.on('exit', (code: number) => (code === 0 ? resolve() : reject(new Error(`compile exited ${code}`))));
   });
