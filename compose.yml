@@ -8,7 +8,8 @@ services:
       - "9944:9944"
     environment:
       CFG_PRESET: "dev"
-      SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+      # Override via SIDECHAIN_BLOCK_BENEFICIARY env var for non-local deployments
+      SIDECHAIN_BLOCK_BENEFICIARY: "${SIDECHAIN_BLOCK_BENEFICIARY:-04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e}"
     healthcheck:
       test:
         [
@@ -30,12 +31,13 @@ services:
       RUST_LOG: "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info"
       APP__APPLICATION__NETWORK_ID: "undeployed"
       APP__INFRA__NODE__URL: "ws://node:9944"
-      APP__INFRA__STORAGE__PASSWORD: "indexer"
-      APP__INFRA__PUB_SUB__PASSWORD: "indexer"
-      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "indexer"
-      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      # ⚠ Override these passwords/secrets via env vars for non-local deployments
+      APP__INFRA__STORAGE__PASSWORD: "${INDEXER_STORAGE_PASSWORD:-indexer}"
+      APP__INFRA__PUB_SUB__PASSWORD: "${INDEXER_PUBSUB_PASSWORD:-indexer}"
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "${INDEXER_LEDGER_PASSWORD:-indexer}"
+      APP__INFRA__SECRET: "${INDEXER_SECRET:-303132333435363738393031323334353637383930313233343536373839303132}"
       APP__INFRA__SPO_NODE__URL: "ws://node:9944"
-      APP__INFRA__SPO_NODE__BLOCKFROST_ID: "local-devnet-dummy-id"
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: "${BLOCKFROST_ID:-local-devnet-dummy-id}"
     healthcheck:
       test: ["CMD-SHELL", "cat /var/run/indexer-standalone/running"]
       interval: 10s
@@ -49,7 +51,7 @@ services:
   proof-server:
     image: midnightntwrk/proof-server:8.1.0
     container_name: nocturne-proof-server
-    command: ["midnight-proof-server -v"]
+    command: ["midnight-proof-server", "-v"]
     ports:
       - "6300:6300"
     environment:

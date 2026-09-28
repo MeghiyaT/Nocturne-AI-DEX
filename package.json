@@ -1,8 +1,8 @@
 {
-  "name": "nocturne-ai",
+  "name": "nocturne-ai-dex",
   "version": "1.0.0",
   "type": "module",
-  "description": "Nocturne AI — a privacy-preserving, GDPR/CCPA-compliant decentralized exchange for AI training datasets, built on Midnight Network with Compact smart contracts.",
+  "description": "Nocturne AI DEX — a privacy-preserving, GDPR/CCPA-compliant decentralized exchange for AI training datasets, built on Midnight Network with Compact smart contracts.",
   "author": "Meghiya Tulse",
   "license": "MIT",
   "scripts": {

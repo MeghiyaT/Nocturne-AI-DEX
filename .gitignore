@@ -4,7 +4,7 @@ node_modules/
 # Generated compact artifacts (rebuilt with `npm run compile`)
 contracts/managed/
 
-# Wallet secrets — NEVER commit
+# Wallet secrets & environment files — NEVER commit
 .midnight-state.json
 .midnight-state*.json
 .midnight-wallet-state/
@@ -12,8 +12,15 @@ contracts/managed/
 midnight-level-db/
 datavault-state*/
 nocturne-state*/
+.env
+.env.*
+!.env.example
 *.env.local
 .env.local
+*.seed
+*seed.txt
+*.key
+*.pem
 
 # Build outputs
 dist/
