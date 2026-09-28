@@ -193,7 +193,7 @@ export class ContractBridge {
     this.foundContract = await findDeployedContract(providers, {
       compiledContract,
       contractAddress: CONTRACT_ADDRESS,
-      privateStateId: 'datavault-browser-state',
+      privateStateId: 'nocturne-browser-state',
       initialPrivateState: {},
     });
   }
@@ -421,7 +421,7 @@ export class ContractBridge {
 
   /**
    * Compute the provider commitment (hash of provider secret).
-   * Mirrors the Compact circuit: persistentHash(["datavault:provider:", secret])
+   * Mirrors the Compact circuit: persistentHash(["nocturne:provider:", secret])
    *
    * Note: We approximate this with a standard SHA-256 since persistentHash
    * is a circuit-internal function. The actual on-chain commitment will be
@@ -430,7 +430,7 @@ export class ContractBridge {
   private async computeProviderCommit(): Promise<Uint8Array> {
     if (!this.providerSecret) throw new Error('Provider secret not initialized');
     const encoder = new TextEncoder();
-    const prefix = encoder.encode('datavault:provider:');
+    const prefix = encoder.encode('nocturne:provider:');
     const combined = new Uint8Array(prefix.length + this.providerSecret.length);
     combined.set(prefix);
     combined.set(this.providerSecret, prefix.length);
@@ -440,11 +440,11 @@ export class ContractBridge {
 
   /**
    * Compute the content commitment from dataset slices.
-   * Mirrors the Compact circuit: persistentHash(["datavault:content:", ...slices])
+   * Mirrors the Compact circuit: persistentHash(["nocturne:content:", ...slices])
    */
   private async computeContentCommitment(slices: Uint8Array[]): Promise<Uint8Array> {
     const encoder = new TextEncoder();
-    const prefix = encoder.encode('datavault:content:');
+    const prefix = encoder.encode('nocturne:content:');
     const totalLength = prefix.length + slices.reduce((sum, s) => sum + s.length, 0);
     const combined = new Uint8Array(totalLength);
     let offset = 0;

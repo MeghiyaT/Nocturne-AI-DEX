@@ -9,9 +9,9 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { TARGET_NETWORK, WALLET_DETECT_DELAYS } from '../config';
 
-const LACE_ADDRESS_KEY = 'datavault_lace_address';
-const ONEAM_ADDRESS_KEY = 'datavault_1am_address';
-const LAST_WALLET_KEY = 'datavault_last_wallet';
+const LACE_ADDRESS_KEY = 'nocturne_lace_address';
+const ONEAM_ADDRESS_KEY = 'nocturne_1am_address';
+const LAST_WALLET_KEY = 'nocturne_last_wallet';
 
 export const WALLET_INSTALL_URLS = {
   lace: 'https://chromewebstore.google.com/detail/lace/gafhhkghbfjjkeiendhlofajokpaflmk',
@@ -641,14 +641,17 @@ export function useMidnight(): MidnightHook {
 
   // Auto reconnect on page mount (silent)
   useEffect(() => {
-    const lastWallet = localStorage.getItem(LAST_WALLET_KEY) as WalletType | null;
+    const lastWallet = (localStorage.getItem(LAST_WALLET_KEY) || localStorage.getItem('datavault_last_wallet')) as WalletType | null;
     if (lastWallet && (lastWallet === 'lace' || lastWallet === '1am')) {
       const key = lastWallet === 'lace' ? LACE_ADDRESS_KEY : ONEAM_ADDRESS_KEY;
-      const storedAddr = localStorage.getItem(key);
+      const legacyKey = lastWallet === 'lace' ? 'datavault_lace_address' : 'datavault_1am_address';
+      const storedAddr = localStorage.getItem(key) || localStorage.getItem(legacyKey);
       if (storedAddr && !isValidMidnightAddress(storedAddr)) {
         // Clear invalid cached identifier/placeholder from previous runs
         localStorage.removeItem(key);
+        localStorage.removeItem(legacyKey);
         localStorage.removeItem(LAST_WALLET_KEY);
+        localStorage.removeItem('datavault_last_wallet');
       } else if (storedAddr && isValidMidnightAddress(storedAddr)) {
         connect(lastWallet, true).catch((err) => {
           console.warn('[useMidnight] auto-connect skipped:', err);

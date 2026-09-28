@@ -930,7 +930,7 @@ function PurchaseModal({
     try {
       // 1. Generate cryptographic purchase receipt anchor & slices
       const purchaseTime = new Date().toISOString();
-      const rawReceiptSeed = `datavault:acq:${listing.datasetId}:${walletAddress}:${listing.dataCommitment}:${purchaseTime}`;
+      const rawReceiptSeed = `nocturne:acq:${listing.datasetId}:${walletAddress}:${listing.dataCommitment}:${purchaseTime}`;
       const enc = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(rawReceiptSeed));
       const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -1933,7 +1933,7 @@ function VerifierView({
       const { datasetSlicesFromBytesBrowser, bytes32ToHex } = await import('../utils/datasetUtils');
       const slices = await datasetSlicesFromBytesBrowser(payloadBytes);
       const enc = new TextEncoder();
-      const prefix = enc.encode('datavault:content:');
+      const prefix = enc.encode('nocturne:content:');
       const totalLength = prefix.length + slices.reduce((sum, s) => sum + s.length, 0);
       const combined = new Uint8Array(totalLength);
       let offset = 0;

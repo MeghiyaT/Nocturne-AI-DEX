@@ -114,7 +114,7 @@ export function hexToBytes32(hex: string): Uint8Array {
  */
 export async function deriveProviderSecretBrowser(walletAddress: string): Promise<Uint8Array> {
   const encoder = new TextEncoder();
-  const input = encoder.encode(`datavault:browser:provider:${walletAddress}`);
+  const input = encoder.encode(`nocturne:browser:provider:${walletAddress}`);
   return sha256Browser(input);
 }
 

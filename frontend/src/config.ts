@@ -1,5 +1,5 @@
 // config.ts
-// Central configuration for the DataVault Exchange frontend.
+// Central configuration for the Nocturne AI frontend.
 //
 // All environment variables and shared constants live here.
 // Import from this module — do NOT inline env lookups or magic numbers elsewhere.
