@@ -126,6 +126,7 @@ export circuit registerDataset(
     datasetSize: Uint<64>,
     rowCount: Opaque<"string">,
     license: Opaque<"string">): [] {
+  assert(!registry.member(disclose(datasetId)), "registerDataset: dataset ID already exists");
   const _sk = providerSecret();
 
   const slices = datasetSlices(datasetId);
@@ -149,6 +150,7 @@ export circuit registerDataset(
 // slices are read from the witness and never disclosed; only verifiedCount
 // changes on chain.
 export circuit proveIntegrity(datasetId: Bytes<32>): [] {
+  assert(registry.member(disclose(datasetId)), "proveIntegrity: unknown dataset");
   const slices = datasetSlices(datasetId);
   const anchor = contentCommitmentOf(slices);
   const listing = registry.lookup(disclose(datasetId));
@@ -159,6 +161,7 @@ export circuit proveIntegrity(datasetId: Bytes<32>): [] {
 
 // Flip of a listing's public visibility. Permitted for the dataset's provider or the deployer.
 export circuit setActive(datasetId: Bytes<32>, active: Boolean): [] {
+  assert(registry.member(disclose(datasetId)), "setActive: unknown dataset");
   const _sk = providerSecret();
   const callerCommit = disclose(providerCommitmentOf(_sk));
   const current = registry.lookup(disclose(datasetId));
@@ -187,4 +190,37 @@ export circuit setActive(datasetId: Bytes<32>, active: Boolean): [] {
 export circuit readRowCount(datasetId: Bytes<32>): Opaque<"string"> {
   assert(registry.member(disclose(datasetId)), "readRowCount: unknown dataset");
   return registry.lookup(disclose(datasetId)).rowCount;
+}
+
+// Permanently delist a dataset by clearing all metadata and deactivating it.
+// Only the dataset's original provider or the registry owner may call this.
+//
+// On an immutable ledger, data cannot be truly deleted. This circuit replaces
+// all meaningful content with tombstone values while preserving the key to
+// prevent re-registration of the same ID. This satisfies GDPR right-to-erasure
+// at the application layer, since the on-chain data is already only hashed
+// commitments — never raw training data.
+export circuit delistDataset(datasetId: Bytes<32>): [] {
+  assert(registry.member(disclose(datasetId)), "delistDataset: unknown dataset");
+  const _sk = providerSecret();
+  const callerCommit = disclose(providerCommitmentOf(_sk));
+  const current = registry.lookup(disclose(datasetId));
+  assert(
+    current.providerCommit == callerCommit || ownerCommit == callerCommit,
+    "delistDataset: not authorized"
+  );
+
+  registry.insert(
+    disclose(datasetId),
+    DataListing {
+      providerCommit: disclose(current.providerCommit),
+      dataCommitment: disclose(pad(32, "")),
+      datasetName: disclose("[removed]"),
+      category: disclose("[removed]"),
+      datasetSize: disclose(current.datasetSize - current.datasetSize),
+      rowCount: disclose("0"),
+      license: disclose("[removed]"),
+      isActive: disclose(false),
+    },
+  );
 }

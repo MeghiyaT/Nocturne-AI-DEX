@@ -158,14 +158,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('proveIntegrity',
                                      'argument 1 (as invoked from Typescript)',
-                                     'datasetRegistry.compact line 151 char 1',
+                                     'datasetRegistry.compact line 152 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(datasetId_0.buffer instanceof ArrayBuffer && datasetId_0.BYTES_PER_ELEMENT === 1 && datasetId_0.length === 32)) {
           __compactRuntime.typeError('proveIntegrity',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'datasetRegistry.compact line 151 char 1',
+                                     'datasetRegistry.compact line 152 char 1',
                                      'Bytes<32>',
                                      datasetId_0)
         }
@@ -195,21 +195,21 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('setActive',
                                      'argument 1 (as invoked from Typescript)',
-                                     'datasetRegistry.compact line 161 char 1',
+                                     'datasetRegistry.compact line 163 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(datasetId_0.buffer instanceof ArrayBuffer && datasetId_0.BYTES_PER_ELEMENT === 1 && datasetId_0.length === 32)) {
           __compactRuntime.typeError('setActive',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'datasetRegistry.compact line 161 char 1',
+                                     'datasetRegistry.compact line 163 char 1',
                                      'Bytes<32>',
                                      datasetId_0)
         }
         if (!(typeof(active_0) === 'boolean')) {
           __compactRuntime.typeError('setActive',
                                      'argument 2 (argument 3 as invoked from Typescript)',
-                                     'datasetRegistry.compact line 161 char 1',
+                                     'datasetRegistry.compact line 163 char 1',
                                      'Boolean',
                                      active_0)
         }
@@ -239,14 +239,14 @@ export class Contract {
         if (!(typeof(contextOrig_0) === 'object' && contextOrig_0.currentQueryContext != undefined)) {
           __compactRuntime.typeError('readRowCount',
                                      'argument 1 (as invoked from Typescript)',
-                                     'datasetRegistry.compact line 187 char 1',
+                                     'datasetRegistry.compact line 190 char 1',
                                      'CircuitContext',
                                      contextOrig_0)
         }
         if (!(datasetId_0.buffer instanceof ArrayBuffer && datasetId_0.BYTES_PER_ELEMENT === 1 && datasetId_0.length === 32)) {
           __compactRuntime.typeError('readRowCount',
                                      'argument 1 (argument 2 as invoked from Typescript)',
-                                     'datasetRegistry.compact line 187 char 1',
+                                     'datasetRegistry.compact line 190 char 1',
                                      'Bytes<32>',
                                      datasetId_0)
         }
@@ -408,11 +408,11 @@ export class Contract {
     return result_0;
   }
   _providerCommitmentOf_0(sk_0) {
-    return this._persistentHash_1([new Uint8Array([100, 97, 116, 97, 118, 97, 117, 108, 116, 58, 112, 114, 111, 118, 105, 100, 101, 114, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    return this._persistentHash_1([new Uint8Array([110, 111, 99, 116, 117, 114, 110, 101, 58, 112, 114, 111, 118, 105, 100, 101, 114, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                    sk_0]);
   }
   _contentCommitmentOf_0(slices_0) {
-    return this._persistentHash_0([new Uint8Array([100, 97, 116, 97, 118, 97, 117, 108, 116, 58, 99, 111, 110, 116, 101, 110, 116, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+    return this._persistentHash_0([new Uint8Array([110, 111, 99, 116, 117, 114, 110, 101, 58, 99, 111, 110, 116, 101, 110, 116, 58, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
                                    slices_0[0],
                                    slices_0[1],
                                    slices_0[2],
@@ -439,6 +439,23 @@ export class Contract {
                      rowCount_0,
                      license_0)
   {
+    __compactRuntime.assert(!_descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                       partialProofData,
+                                                                                       [
+                                                                                        { dup: { n: 0 } },
+                                                                                        { idx: { cached: false,
+                                                                                                 pushPath: false,
+                                                                                                 path: [
+                                                                                                        { tag: 'value',
+                                                                                                          value: { value: _descriptor_12.toValue(0n),
+                                                                                                                   alignment: _descriptor_12.alignment() } }] } },
+                                                                                        { push: { storage: false,
+                                                                                                  value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(datasetId_0),
+                                                                                                                                               alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                        'member',
+                                                                                        { popeq: { cached: true,
+                                                                                                   result: undefined } }]).value),
+                            'registerDataset: dataset ID already exists');
     const _sk_0 = this._providerSecret_0(context, partialProofData);
     const slices_0 = this._datasetSlices_0(context,
                                            partialProofData,
@@ -471,6 +488,23 @@ export class Contract {
     return [];
   }
   _proveIntegrity_0(context, partialProofData, datasetId_0) {
+    __compactRuntime.assert(_descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                      partialProofData,
+                                                                                      [
+                                                                                       { dup: { n: 0 } },
+                                                                                       { idx: { cached: false,
+                                                                                                pushPath: false,
+                                                                                                path: [
+                                                                                                       { tag: 'value',
+                                                                                                         value: { value: _descriptor_12.toValue(0n),
+                                                                                                                  alignment: _descriptor_12.alignment() } }] } },
+                                                                                       { push: { storage: false,
+                                                                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(datasetId_0),
+                                                                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                       'member',
+                                                                                       { popeq: { cached: true,
+                                                                                                  result: undefined } }]).value),
+                            'proveIntegrity: unknown dataset');
     const slices_0 = this._datasetSlices_0(context,
                                            partialProofData,
                                            datasetId_0);
@@ -514,6 +548,23 @@ export class Contract {
     return [];
   }
   _setActive_0(context, partialProofData, datasetId_0, active_0) {
+    __compactRuntime.assert(_descriptor_3.fromValue(__compactRuntime.queryLedgerState(context,
+                                                                                      partialProofData,
+                                                                                      [
+                                                                                       { dup: { n: 0 } },
+                                                                                       { idx: { cached: false,
+                                                                                                pushPath: false,
+                                                                                                path: [
+                                                                                                       { tag: 'value',
+                                                                                                         value: { value: _descriptor_12.toValue(0n),
+                                                                                                                  alignment: _descriptor_12.alignment() } }] } },
+                                                                                       { push: { storage: false,
+                                                                                                 value: __compactRuntime.StateValue.newCell({ value: _descriptor_0.toValue(datasetId_0),
+                                                                                                                                              alignment: _descriptor_0.alignment() }).encode() } },
+                                                                                       'member',
+                                                                                       { popeq: { cached: true,
+                                                                                                  result: undefined } }]).value),
+                            'setActive: unknown dataset');
     const _sk_0 = this._providerSecret_0(context, partialProofData);
     const callerCommit_0 = this._providerCommitmentOf_0(_sk_0);
     const current_0 = _descriptor_4.fromValue(__compactRuntime.queryLedgerState(context,
@@ -785,7 +836,7 @@ const _emptyContext = {
   currentQueryContext: new __compactRuntime.QueryContext(new __compactRuntime.ContractState().data, __compactRuntime.dummyContractAddress())
 };
 const _dummyContract = new Contract({
-  providerSecret: (...args) => undefined, datasetSlices: (...args) => undefined
+  providerSecret: (..._args) => undefined, datasetSlices: (..._args) => undefined
 });
 export const pureCircuits = {};
 export const contractReferenceLocations =
