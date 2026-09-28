@@ -103,27 +103,9 @@ function App() {
                 fontSize: '1.05rem',
                 letterSpacing: '-0.02em',
                 color: 'var(--text-main)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
               }}
             >
-              <span>Nocturne AI</span>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  padding: '0.12rem 0.42rem',
-                  borderRadius: '4px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: 'var(--text-main)',
-                }}
-              >
-                DEX
-              </span>
+              Nocturne AI DEX
             </div>
           </div>
 
