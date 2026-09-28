@@ -1,4 +1,4 @@
-// Wallet construction + sync-state restore for DataVault Exchange.
+// Wallet construction + sync-state restore for Nocturne AI.
 //
 // Mirrors network.ts in structure. The on-disk format and pure I/O live in
 // wallet-state.ts; this file is the glue between that format and the wallet SDK.

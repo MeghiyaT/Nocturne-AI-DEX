@@ -12,7 +12,7 @@ import {
 } from '../src/wallet-state';
 
 function tmpDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'datavault-wstate-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'nocturne-wstate-'));
 }
 
 describe('wallet-state', () => {

@@ -1,4 +1,4 @@
-// Interactive CLI for the DataVault Exchange registry.
+// Interactive CLI for the Nocturne AI registry.
 //
 // Commands (operate on the active network's deployed contract):
 //   register <label> <name> <size> <rows> <license> [--file path]
@@ -28,7 +28,7 @@ import {
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-const PRIVATE_STATE_ID = 'dataVaultState';
+const PRIVATE_STATE_ID = 'nocturneState';
 
 export interface CliContext {
   network: string;

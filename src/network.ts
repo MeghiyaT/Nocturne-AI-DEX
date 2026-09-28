@@ -1,4 +1,4 @@
-// Network configuration and wallet identity management for DataVault Exchange.
+// Network configuration and wallet identity management for Nocturne AI.
 //
 // Structured to be extracted into a standalone package without code changes.
 // All side-effecting inputs flow through function parameters.

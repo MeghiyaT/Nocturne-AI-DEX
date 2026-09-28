@@ -144,7 +144,7 @@ describe('deployment records', () => {
 });
 
 function mkTmp(base?: string | null): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'datavault-test-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nocturne-test-'));
   if (base) fs.mkdirSync(path.join(dir, base), { recursive: true });
   return dir;
 }

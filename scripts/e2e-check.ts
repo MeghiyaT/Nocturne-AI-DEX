@@ -1,4 +1,4 @@
-// End-to-end smoke test against the deployed dataVault contract.
+// End-to-end smoke test against the deployed Nocturne AI contract.
 //
 // Assumes `npm run setup` already ran (deployment recorded in .midnight-state.json).
 // Run: npm run check:e2e
@@ -25,7 +25,7 @@ function ok(label: string): void {
 
 async function main(): Promise<void> {
   const { network } = resolveNetwork();
-  console.log(`\n── DataVault e2e: network=${network} ──────────────────────────────\n`);
+  console.log(`\n── Nocturne AI e2e: network=${network} ──────────────────────────────\n`);
 
   const deployment = getDeployment(network);
   if (!deployment) {

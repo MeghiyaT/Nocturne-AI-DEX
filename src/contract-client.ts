@@ -1,4 +1,4 @@
-// Shared contract wiring for DataVault Exchange:
+// Shared contract wiring for Nocturne AI:
 //  - locates the compiled datasetRegistry contract artifacts
 //  - wires the real witnesses the contract requires (providerSecret +
 //    datasetSlices) as in-memory, call-scope values
@@ -76,9 +76,9 @@ export function createProviders(
   const accountId = walletCtx.unshieldedKeystore.getBech32Address().toString();
   const derivedHex = crypto
     .createHash('sha256')
-    .update(`datavault:privatestate:${networkConfig.networkId}:${accountId}:${walletCtx.dustSecretKey}`)
+    .update(`nocturne:privatestate:${networkConfig.networkId}:${accountId}:${walletCtx.dustSecretKey}`)
     .digest('hex');
-  const derivedFallbackPassword = `DV_Zk!${derivedHex.slice(0, 32)}$A1`;
+  const derivedFallbackPassword = `NOC_Zk!${derivedHex.slice(0, 32)}$A1`;
   const privateStatePassword = envPassword || derivedFallbackPassword;
 
   const walletProvider = {
@@ -103,7 +103,7 @@ export function createProviders(
 
   const zkConfigProvider = new NodeZkConfigProvider(ZK_CONFIG_PATH);
   const privateStateProvider = levelPrivateStateProvider({
-    privateStateStoreName: opts.privateStateId ?? 'datavault-state',
+    privateStateStoreName: opts.privateStateId ?? 'nocturne-state',
     accountId,
     privateStoragePasswordProvider: () => privateStatePassword,
   });

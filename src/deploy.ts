@@ -1,4 +1,4 @@
-// Deploy the DataVault Exchange datasetRegistry contract to a Midnight network.
+// Deploy the Nocturne AI datasetRegistry contract to a Midnight network.
 //
 // Non-interactive: scaffold → npm run setup runs straight through.
 import { WebSocket } from 'ws';
@@ -15,7 +15,7 @@ import { DatasetStore, sha256, datasetStoreToSliceProvider } from './dataset';
 // @ts-expect-error Required for wallet sync
 globalThis.WebSocket = WebSocket;
 
-const PRIVATE_STATE_ID = 'dataVaultState';
+const PRIVATE_STATE_ID = 'nocturneState';
 
 // ─── Timing constants ────────────────────────────────────────────────────────
 /** How often (ms) the faucet-funding loop polls the wallet for a new balance. */
@@ -88,7 +88,7 @@ async function initContract(ctx: WalletContext) {
 
 export async function deploy() {
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log(`║  Deploy DataVault Exchange to ${network}`);
+  console.log(`║  Deploy Nocturne AI to ${network}`);
   console.log('╚══════════════════════════════════════════════════════════════╝\n');
 
   const seed = SEED;

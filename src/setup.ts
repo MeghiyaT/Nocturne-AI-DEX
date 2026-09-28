@@ -30,7 +30,7 @@ async function waitForProofServer(url: string, maxMs = 120_000): Promise<boolean
 }
 
 export async function setup(): Promise<void> {
-  console.log('─── DataVault Exchange setup ──────────────────────────────────\n');
+  console.log('─── Nocturne AI setup ──────────────────────────────────\n');
 
   const { network, config } = resolveNetwork();
   const wallet = getOrCreateWallet(network);

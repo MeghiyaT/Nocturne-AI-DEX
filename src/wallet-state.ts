@@ -1,4 +1,4 @@
-// Wallet sync-state persistence for DataVault Exchange.
+// Wallet sync-state persistence for Nocturne AI.
 //
 // Mirrors network.ts: no SDK imports, all I/O via function parameters — keeps
 // the module unit-testable from the scaffolder workspace (which doesn't install
