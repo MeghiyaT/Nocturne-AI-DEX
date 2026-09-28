@@ -105,8 +105,8 @@ export async function deploy() {
   const syncSub = walletCtx.wallet.state().pipe(Rx.throttleTime(5000)).subscribe((s: any) => {
     const tn = s?.unshielded?.balances?.[unshieldedToken().raw] ?? 0n;
     const dustBal = s?.dust ? s.dust.balance(new Date()) : 0n;
-    if (tn > 0n && dustBal > 0n) {
-      console.log(`  ✓ Unshielded tNIGHT and DUST ready (tNIGHT: ${tn.toLocaleString()}, DUST: ${dustBal.toLocaleString()})`);
+    if (tn > 0n || s.isSynced) {
+      console.log(`  ✓ Unshielded balance synced (tNIGHT: ${tn.toLocaleString()}, DUST: ${dustBal.toLocaleString()})`);
     } else {
       console.log(`  ...syncing in progress (isSynced: ${s.isSynced})`);
     }
@@ -114,7 +114,10 @@ export async function deploy() {
 
   const state = await Rx.firstValueFrom(
     walletCtx.wallet.state().pipe(
-      Rx.filter((s: any) => s.isSynced),
+      Rx.filter((s: any) => {
+        const tn = s?.unshielded?.balances?.[unshieldedToken().raw] ?? 0n;
+        return s.isSynced || tn > 0n;
+      }),
     ),
   );
   syncSub.unsubscribe();
@@ -139,7 +142,14 @@ export async function deploy() {
       const start = Date.now();
       while (true) {
         await new Promise((r) => setTimeout(r, FAUCET_POLL_MS));
-        const s = await Rx.firstValueFrom(walletCtx.wallet.state().pipe(Rx.filter((x) => x.isSynced)));
+        const s = await Rx.firstValueFrom(
+          walletCtx.wallet.state().pipe(
+            Rx.filter((x: any) => {
+              const tn = x?.unshielded?.balances?.[unshieldedToken().raw] ?? 0n;
+              return x.isSynced || tn > 0n;
+            }),
+          ),
+        );
         const tn = s.unshielded.balances[unshieldedToken().raw] ?? 0n;
         if (tn > 0n) {
           console.log(`\n  Funded! tNIGHT balance: ${tn.toLocaleString()}\n`);
