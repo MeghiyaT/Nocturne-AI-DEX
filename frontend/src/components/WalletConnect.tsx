@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import type { MidnightHook } from '../hooks/useMidnight';
-import { WALLET_INSTALL_URLS } from '../hooks/useMidnight';
+import { WALLET_INSTALL_URLS, normalizeNetwork } from '../hooks/useMidnight';
 import { WalletIcon } from './WalletIcons';
 import { COPY_FEEDBACK_MS } from '../config';
 import {
@@ -15,7 +15,8 @@ import {
   ExternalLink,
   LogOut,
   X,
-  Wallet
+  Wallet,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Props {
@@ -23,8 +24,8 @@ interface Props {
 }
 
 function truncate(addr: string): string {
-  if (!addr || addr.length < 16) return addr;
-  return `${addr.slice(0, 10)}…${addr.slice(-6)}`;
+  if (!addr || addr.length < 24) return addr;
+  return `${addr.slice(0, 16)}…${addr.slice(-6)}`;
 }
 
 export function WalletConnect({ hook }: Props) {
@@ -42,6 +43,14 @@ export function WalletConnect({ hook }: Props) {
   const [showMenu, setShowMenu] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+
+  const isMismatch =
+    walletState.status === 'connected' &&
+    !!(
+      walletState.isNetworkMismatch ||
+      hook.isNetworkMismatch ||
+      (walletState.network && targetNetwork && normalizeNetwork(walletState.network) !== normalizeNetwork(targetNetwork))
+    );
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -294,72 +303,139 @@ export function WalletConnect({ hook }: Props) {
       {/* ── Connected State ──────────────────────────────────────────────── */}
       {walletState.status === 'connected' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {/* Balance Pill */}
-          <div
-            style={{
-              padding: '0.35rem 0.75rem',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: 'var(--text-main)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
-            <span className="mono">{walletState.balance}</span>
-          </div>
-
-          {/* Connected Address & Wallet Trigger */}
-          <button
-            className="btn btn-secondary btn-sm"
-            onClick={() => setShowMenu(!showMenu)}
-            style={{
-              borderRadius: 'var(--radius-full)',
-              padding: '0.35rem 0.85rem',
-              fontSize: '0.8rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <WalletIcon type={walletState.walletType} iconUrl={walletState.iconUrl} size={16} />
-            <span className="mono">{truncate(walletState.address)}</span>
-            <ChevronDown size={13} style={{ opacity: 0.7 }} />
-          </button>
-
-          {showMenu && (
+            {/* Balance Pill */}
             <div
               style={{
-                position: 'absolute',
-                top: 'calc(100% + 10px)',
-                right: 0,
-                width: 320,
-                maxWidth: 'calc(100vw - 2rem)',
-                background: 'var(--bg-modal)',
-                border: '1px solid var(--border-glass)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1.1rem',
-                boxShadow: 'var(--shadow-modal)',
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                zIndex: 1000,
+                padding: '0.35rem 0.75rem',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-full)',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                color: 'var(--text-main)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
               }}
             >
-              {/* Header Badges */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  <WalletIcon type={walletState.walletType} iconUrl={walletState.iconUrl} size={18} />
-                  <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
-                    {walletState.connectorName}
+              <span className="mono">{walletState.balance}</span>
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  padding: '0.12rem 0.4rem',
+                  borderRadius: '4px',
+                  background: isMismatch ? 'rgba(229, 169, 80, 0.12)' : 'rgba(255, 255, 255, 0.08)',
+                  color: isMismatch ? '#e5a950' : 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {walletState.network}
+              </span>
+            </div>
+
+            {/* Wrong Network Indicator Pill in Header */}
+            {isMismatch && (
+              <div
+                style={{
+                  padding: '0.35rem 0.7rem',
+                  background: 'rgba(229, 169, 80, 0.08)',
+                  border: '1px solid rgba(229, 169, 80, 0.25)',
+                  borderRadius: 'var(--radius-full)',
+                  fontSize: '0.74rem',
+                  fontWeight: 500,
+                  color: '#e5a950',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
+                title={`Wallet network (${walletState.network.toUpperCase()}) does not match DApp target (${hook.targetNetwork.toUpperCase()})`}
+              >
+                <AlertTriangle size={12} style={{ color: '#e5a950', opacity: 0.9 }} />
+                <span>Wrong Net ({walletState.network.toUpperCase()})</span>
+              </div>
+            )}
+
+            {/* Connected Address & Wallet Trigger */}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setShowMenu(!showMenu)}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '0.35rem 0.85rem',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <WalletIcon type={walletState.walletType} iconUrl={walletState.iconUrl} size={16} />
+              <span className="mono">{truncate(walletState.address)}</span>
+              <ChevronDown size={13} style={{ opacity: 0.7 }} />
+            </button>
+
+            {showMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 10px)',
+                  right: 0,
+                  width: 330,
+                  maxWidth: 'calc(100vw - 2rem)',
+                  background: 'var(--bg-modal)',
+                  border: '1px solid var(--border-glass)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1.1rem',
+                  boxShadow: 'var(--shadow-modal)',
+                  backdropFilter: 'blur(24px)',
+                  WebkitBackdropFilter: 'blur(24px)',
+                  zIndex: 1000,
+                }}
+              >
+                {/* Header Badges */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <WalletIcon type={walletState.walletType} iconUrl={walletState.iconUrl} size={18} />
+                    <span style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)' }}>
+                      {walletState.connectorName}
+                    </span>
+                  </div>
+                  <span
+                    className="badge"
+                    style={{
+                      fontSize: '0.65rem',
+                      background: isMismatch ? 'rgba(229, 169, 80, 0.1)' : undefined,
+                      color: isMismatch ? '#e5a950' : undefined,
+                      border: isMismatch ? '1px solid rgba(229, 169, 80, 0.25)' : undefined,
+                    }}
+                  >
+                    {walletState.network.toUpperCase()} {isMismatch ? '⚠ MISMATCH' : '✓'}
                   </span>
                 </div>
-                <span className="badge" style={{ fontSize: '0.65rem' }}>
-                  {walletState.network.toUpperCase()}
-                </span>
-              </div>
+
+                {/* Network Mismatch Warning Banner */}
+                {isMismatch && (
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(229, 169, 80, 0.22)',
+                      borderLeft: '3px solid #e5a950',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '0.75rem 0.85rem',
+                      marginBottom: '0.75rem',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem', color: 'var(--text-main)' }}>
+                      <AlertTriangle size={13} style={{ color: '#e5a950' }} /> Network Mismatch
+                    </div>
+                    Your {walletState.connectorName} is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{walletState.network.toUpperCase()}</span>, but this DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{hook.targetNetwork.toUpperCase()}</span>.
+                    Please switch to <span style={{ color: '#e5a950', fontWeight: 600 }}>{hook.targetNetwork.toUpperCase()}</span> in your wallet extension settings to transact.
+                  </div>
+                )}
 
               {/* Inline Switch / Status Notification */}
               {switchNotification && (

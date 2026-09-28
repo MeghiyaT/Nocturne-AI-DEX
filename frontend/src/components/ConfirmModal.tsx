@@ -45,21 +45,21 @@ export function ConfirmModal({
   const isWarning = variant === 'warning';
 
   const badgeBg = isDanger
-    ? 'rgba(255, 69, 58, 0.12)'
+    ? 'rgba(248, 113, 113, 0.1)'
     : isWarning
-    ? 'rgba(245, 166, 35, 0.12)'
+    ? 'rgba(229, 169, 80, 0.1)'
     : 'rgba(255, 255, 255, 0.08)';
 
   const badgeColor = isDanger
-    ? 'var(--accent-rose, #ff6961)'
+    ? 'var(--accent-rose, #f87171)'
     : isWarning
-    ? 'var(--accent-amber, #f5a623)'
+    ? 'var(--accent-amber, #e5a950)'
     : 'var(--text-main, #ffffff)';
 
   const badgeBorder = isDanger
-    ? '1px solid rgba(255, 69, 58, 0.3)'
+    ? '1px solid rgba(248, 113, 113, 0.25)'
     : isWarning
-    ? '1px solid rgba(245, 166, 35, 0.3)'
+    ? '1px solid rgba(229, 169, 80, 0.25)'
     : '1px solid rgba(255, 255, 255, 0.15)';
 
   return (
@@ -85,10 +85,8 @@ export function ConfirmModal({
           width: '100%',
           padding: '1.75rem',
           background: 'var(--bg-modal, #0d0f17)',
-          border: isDanger ? '1px solid rgba(255, 69, 58, 0.35)' : '1px solid var(--border-glass)',
-          boxShadow: isDanger
-            ? 'var(--shadow-modal, 0 24px 60px rgba(0, 0, 0, 0.9)), 0 0 24px rgba(255, 69, 58, 0.15)'
-            : 'var(--shadow-modal, 0 24px 60px rgba(0, 0, 0, 0.9))',
+          border: isDanger ? '1px solid rgba(248, 113, 113, 0.25)' : '1px solid var(--border-glass)',
+          boxShadow: 'var(--shadow-modal, 0 24px 60px rgba(0, 0, 0, 0.9))',
         }}
         onClick={(e) => e.stopPropagation()}
       >

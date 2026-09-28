@@ -1,8 +1,7 @@
-// DatasetExchange.tsx
-// Nocturne AI — Privacy-Preserving AI Dataset Marketplace
-
 import React, { useState, useMemo } from 'react';
 import type { WalletState } from '../hooks/useMidnight';
+import { normalizeNetwork } from '../hooks/useMidnight';
+import { TARGET_NETWORK } from '../config';
 import type { DataListing, RegistryState } from '../hooks/useIndexer';
 import type { UserProfileHook, PurchaseRecord, SaleRecord } from '../hooks/useUserProfile';
 import type { ContractBridgeHook } from '../hooks/useContractBridge';
@@ -27,7 +26,8 @@ import {
   ArrowRight,
   User,
   Copy,
-  Trash2
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Props {
@@ -247,6 +247,7 @@ export function DatasetExchange({
           onDeductBalance={onDeductBalance}
           onCreditBalance={onCreditBalance}
           onSignAndSubmitPurchaseTx={onSignAndSubmitPurchaseTx}
+          onRefreshBalance={onRefreshBalance}
           onSelectSection={onSelectSection}
         />
       )}
@@ -550,10 +551,10 @@ function MarketplaceView({
           <div
             style={{
               padding: '0.85rem 1rem',
-              background: 'rgba(255, 69, 58, 0.1)',
-              border: '1px solid rgba(255, 69, 58, 0.3)',
+              background: 'rgba(248, 113, 113, 0.08)',
+              border: '1px solid rgba(248, 113, 113, 0.25)',
               borderRadius: 'var(--radius-sm)',
-              color: 'var(--accent-rose)',
+              color: '#f87171',
               marginBottom: '1.5rem',
               fontSize: '0.85rem',
             }}
@@ -849,6 +850,7 @@ function PurchaseModal({
   onDeductBalance,
   onCreditBalance,
   onSignAndSubmitPurchaseTx,
+  onRefreshBalance,
   onSelectSection,
 }: {
   listing: DataListing;
@@ -867,6 +869,7 @@ function PurchaseModal({
     amountNight: number,
     datasetName: string
   ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
+  onRefreshBalance?: () => Promise<any> | void;
   onSelectSection?: (section: NavSection) => void;
 }) {
   const [step, setStep] = useState<'review' | 'processing' | 'success'>('review');
@@ -887,9 +890,23 @@ function PurchaseModal({
 
   const isConnected = walletState.status === 'connected' && !!walletAddress;
 
+  const isNetworkMismatch =
+    walletState.status === 'connected' &&
+    !!(
+      normalizeNetwork(walletState.network) &&
+      normalizeNetwork(TARGET_NETWORK) &&
+      normalizeNetwork(walletState.network) !== normalizeNetwork(TARGET_NETWORK)
+    );
+
   const handleConfirmPurchase = async () => {
     if (isOwner) {
       setErrorMsg('You cannot purchase your own dataset listing.');
+      return;
+    }
+    if (isNetworkMismatch) {
+      setErrorMsg(
+        `Network Mismatch: Your wallet is connected to "${walletState.status === 'connected' ? walletState.network.toUpperCase() : ''}", but Nocturne DEX is targeting "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
+      );
       return;
     }
     if (!isConnected) {
@@ -908,7 +925,9 @@ function PurchaseModal({
       const enc = new TextEncoder();
       const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(rawReceiptSeed));
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      let txHash = '0x' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+      let txHash = priceNum === 0
+        ? '0x' + hashArray.map((b) => b.toString(16).padStart(2, '0')).join('')
+        : '';
 
       if (listing.downloadPayload && contractBridge.sliceStore) {
         const payloadBytes = enc.encode(listing.downloadPayload);
@@ -926,19 +945,23 @@ function PurchaseModal({
       // Stage 2: Wallet Signature & On-Chain Escrow via Midnight Extension
       setProcessStage('sign');
       const sellerAddr = listing.sellerAddress || listing.providerCommit || '';
-      if (onSignAndSubmitPurchaseTx && priceNum > 0) {
+      if (priceNum > 0) {
+        if (!onSignAndSubmitPurchaseTx) {
+          throw new Error('Wallet transaction provider is not available.');
+        }
         try {
           const signRes = await onSignAndSubmitPurchaseTx(sellerAddr, priceNum, listing.datasetName);
-          if (signRes.txHash) {
-            txHash = signRes.txHash;
+          if (!signRes || !signRes.txHash) {
+            throw new Error('Wallet transaction was not confirmed or returned no hash.');
           }
+          txHash = signRes.txHash;
         } catch (signErr: any) {
-          setErrorMsg(signErr?.message || 'Transaction signing was cancelled.');
+          setErrorMsg(signErr?.message || 'Transaction signing or submission failed.');
           setStep('review');
           return;
         }
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 1200));
+        await new Promise((resolve) => setTimeout(resolve, 800));
         if (onDeductBalance && priceNum > 0) {
           onDeductBalance(priceNum, walletAddress || undefined);
         }
@@ -949,7 +972,16 @@ function PurchaseModal({
 
       // Stage 3: Broadcast Settlement to Midnight Ledger
       setProcessStage('ledger');
+      if (onRefreshBalance) {
+        try {
+          await onRefreshBalance();
+        } catch {}
+      }
       await new Promise((resolve) => setTimeout(resolve, 1100));
+
+      if (!txHash) {
+        throw new Error('Payment settlement failed: No confirmed transaction hash.');
+      }
 
       // Persist in seller records
       if (sellerAddr && priceNum > 0) {
@@ -1137,13 +1169,39 @@ function PurchaseModal({
               >
                 You are the seller of this dataset and cannot purchase your own listing.
               </div>
+            ) : isNetworkMismatch ? (
+              <div
+                style={{
+                  padding: '0.8rem 1rem',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  border: '1px solid rgba(229, 169, 80, 0.22)',
+                  borderLeft: '3px solid #e5a950',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '1rem',
+                  fontSize: '0.8rem',
+                  lineHeight: 1.5,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.65rem',
+                }}
+              >
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '0.15rem', color: '#e5a950' }} />
+                <div style={{ color: 'var(--text-muted)' }}>
+                  <strong style={{ display: 'block', marginBottom: '0.2rem', color: 'var(--text-main)' }}>
+                    Network Mismatch
+                  </strong>
+                  Your wallet is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{walletState.status === 'connected' ? walletState.network.toUpperCase() : ''}</span>, but
+                  this DEX contract runs on <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span>. Please switch your wallet network to <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span> in wallet settings to proceed.
+                </div>
+              </div>
             ) : errorMsg && (
               <div
                 style={{
-                  padding: '0.75rem',
-                  background: 'rgba(255, 69, 58, 0.1)',
+                  padding: '0.8rem 1rem',
+                  background: 'rgba(248, 113, 113, 0.08)',
+                  border: '1px solid rgba(248, 113, 113, 0.25)',
                   borderRadius: 'var(--radius-sm)',
-                  color: 'var(--accent-rose)',
+                  color: '#f87171',
                   marginBottom: '1rem',
                   fontSize: '0.8rem',
                 }}
@@ -1159,6 +1217,14 @@ function PurchaseModal({
               {isOwner ? (
                 <button className="btn btn-secondary" style={{ flex: 2 }} disabled>
                   Your Listing
+                </button>
+              ) : isNetworkMismatch ? (
+                <button
+                  className="btn btn-secondary"
+                  style={{ flex: 2, opacity: 0.6, cursor: 'not-allowed', color: 'var(--text-subtle)' }}
+                  disabled
+                >
+                  Switch Wallet to {TARGET_NETWORK.toUpperCase()}
                 </button>
               ) : isConnected ? (
                 <button className="btn btn-buy" style={{ flex: 2 }} onClick={handleConfirmPurchase}>
@@ -1496,6 +1562,13 @@ function RegisterView({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const currentNetwork = walletState.status === 'connected' ? (walletState.network || '') : '';
+  const isMismatch = !!(
+    walletState.status === 'connected' &&
+    (walletState.isNetworkMismatch ||
+      (currentNetwork && TARGET_NETWORK && normalizeNetwork(currentNetwork) !== normalizeNetwork(TARGET_NETWORK)))
+  );
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1548,6 +1621,16 @@ function RegisterView({
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (walletState.status !== 'connected') {
+      setErrorMsg('Please connect your wallet before listing a dataset.');
+      return;
+    }
+    if (isMismatch) {
+      setErrorMsg(
+        `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings to list datasets.`
+      );
+      return;
+    }
     if (!datasetName.trim()) {
       setErrorMsg('Please enter a dataset name.');
       return;
@@ -1650,18 +1733,50 @@ function RegisterView({
         {!contractBridge.proofServerOnline && (
           <div
             style={{
-              padding: '0.85rem 1rem',
-              background: 'linear-gradient(135deg, rgba(255, 69, 58, 0.12) 0%, rgba(180, 20, 20, 0.05) 100%)',
-              border: '1px solid rgba(255, 69, 58, 0.35)',
+              padding: '0.85rem 1.15rem',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid var(--border-subtle)',
+              borderLeft: '3px solid rgba(255, 255, 255, 0.35)',
               borderRadius: 'var(--radius-sm)',
-              color: '#ff857d',
-              boxShadow: '0 0 16px rgba(255, 69, 58, 0.15)',
+              color: 'var(--text-muted)',
               marginBottom: '1.25rem',
-              fontSize: '0.82rem',
-              lineHeight: 1.5,
+              fontSize: '0.83rem',
+              lineHeight: 1.55,
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
             }}
           >
-            <strong style={{ color: '#ff6961' }}>ℹ Local Anchor Mode:</strong> The remote Midnight proof server is currently unreachable. Your dataset will be registered locally with authentic SHA-256 slices &amp; cryptographic integrity anchors, and will be ready for immediate on-chain submission once the proof server is live.
+            <strong style={{ color: 'var(--text-main)' }}>ℹ Local Anchor Mode:</strong> The remote Midnight proof server is currently unreachable. Your dataset will be registered locally with authentic SHA-256 slices &amp; cryptographic integrity anchors, and will be ready for immediate on-chain submission once the proof server is live.
+          </div>
+        )}
+
+        {/* Network Mismatch Warning Banner */}
+        {isMismatch && (
+          <div
+            style={{
+              padding: '0.9rem 1.15rem',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(229, 169, 80, 0.22)',
+              borderLeft: '3px solid #e5a950',
+              borderRadius: 'var(--radius-sm)',
+              marginBottom: '1.25rem',
+              fontSize: '0.84rem',
+              lineHeight: 1.55,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+            }}
+          >
+            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '0.15rem', color: '#e5a950' }} />
+            <div style={{ color: 'var(--text-muted)' }}>
+              <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--text-main)', fontSize: '0.88rem' }}>
+                Network Mismatch: Dataset Listing Blocked
+              </strong>
+              Your wallet is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentNetwork.toUpperCase()}</span>, but Nocturne DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span>.
+              Please switch your wallet extension to <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span> in your wallet settings to register datasets on this marketplace.
+            </div>
           </div>
         )}
 
@@ -1669,10 +1784,11 @@ function RegisterView({
           {errorMsg && (
             <div
               style={{
-                padding: '0.75rem',
-                background: 'rgba(255, 69, 58, 0.1)',
+                padding: '0.85rem 1.1rem',
+                background: 'rgba(248, 113, 113, 0.08)',
+                border: '1px solid rgba(248, 113, 113, 0.25)',
                 borderRadius: 'var(--radius-sm)',
-                color: 'var(--accent-rose)',
+                color: '#f87171',
                 marginBottom: '1.25rem',
                 fontSize: '0.82rem',
               }}
@@ -1842,11 +1958,18 @@ function RegisterView({
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ width: '100%' }}
-            disabled={isProcessing || contractBridge.loading}
+            style={{
+              width: '100%',
+              opacity: isProcessing || contractBridge.loading || isMismatch || walletState.status !== 'connected' ? 0.6 : 1,
+            }}
+            disabled={isProcessing || contractBridge.loading || isMismatch || walletState.status !== 'connected'}
           >
             {isProcessing || contractBridge.loading
               ? (contractBridge.statusMessage || 'Anchoring to Midnight...')
+              : isMismatch
+              ? `Switch Wallet to ${TARGET_NETWORK.toUpperCase()} to List Dataset`
+              : walletState.status !== 'connected'
+              ? 'Connect Wallet to List Dataset'
               : 'Publish Listing'}
           </button>
         </form>
@@ -2521,8 +2644,7 @@ function InspectModal({
               </button>
               <button
                 type="button"
-                className="btn btn-sm"
-                style={{ background: '#ef4444', borderColor: '#ef4444', color: '#ffffff', fontWeight: 600 }}
+                className="btn btn-danger btn-sm"
                 onClick={() => {
                   onRemoveListing?.(listing.datasetId);
                   onClose();
