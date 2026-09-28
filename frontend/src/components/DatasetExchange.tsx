@@ -905,7 +905,7 @@ function PurchaseModal({
     }
     if (isNetworkMismatch) {
       setErrorMsg(
-        `Network Mismatch: Your wallet is connected to "${walletState.status === 'connected' ? walletState.network.toUpperCase() : ''}", but Nocturne DEX is targeting "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
+        `Network Mismatch: Your wallet is connected to "${walletState.status === 'connected' ? walletState.network.toUpperCase() : ''}", but Nocturne AI DEX is targeting "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
       );
       return;
     }
@@ -1627,7 +1627,7 @@ function RegisterView({
     }
     if (isMismatch) {
       setErrorMsg(
-        `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings to list datasets.`
+        `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne AI DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings to list datasets.`
       );
       return;
     }
@@ -1774,7 +1774,7 @@ function RegisterView({
               <strong style={{ display: 'block', marginBottom: '0.25rem', color: 'var(--text-main)', fontSize: '0.88rem' }}>
                 Network Mismatch: Dataset Listing Blocked
               </strong>
-              Your wallet is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentNetwork.toUpperCase()}</span>, but Nocturne DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span>.
+              Your wallet is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentNetwork.toUpperCase()}</span>, but Nocturne AI DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span>.
               Please switch your wallet extension to <span style={{ color: '#e5a950', fontWeight: 600 }}>{TARGET_NETWORK.toUpperCase()}</span> in your wallet settings to register datasets on this marketplace.
             </div>
           </div>

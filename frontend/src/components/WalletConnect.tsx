@@ -432,7 +432,7 @@ export function WalletConnect({ hook }: Props) {
                     <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem', color: 'var(--text-main)' }}>
                       <AlertTriangle size={13} style={{ color: '#e5a950' }} /> Network Mismatch
                     </div>
-                    Your {walletState.connectorName} is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{walletState.network.toUpperCase()}</span>, but this DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{hook.targetNetwork.toUpperCase()}</span>.
+                    Your {walletState.connectorName} is connected to <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{walletState.network.toUpperCase()}</span>, but Nocturne AI DEX targets <span style={{ color: '#e5a950', fontWeight: 600 }}>{hook.targetNetwork.toUpperCase()}</span>.
                     Please switch to <span style={{ color: '#e5a950', fontWeight: 600 }}>{hook.targetNetwork.toUpperCase()}</span> in your wallet extension settings to transact.
                   </div>
                 )}

@@ -674,7 +674,7 @@ export function useMidnight(): MidnightHook {
 
         if (isMismatch) {
           setSwitchNotification(
-            `Network Warning: ${walletLabel} is currently set to "${activeNetwork.toUpperCase()}", but Nocturne DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
+            `Network Warning: ${walletLabel} is currently set to "${activeNetwork.toUpperCase()}", but Nocturne AI DEX targets "${TARGET_NETWORK.toUpperCase()}". Please switch network in your wallet settings.`
           );
         } else {
           setSwitchNotification(null);
@@ -899,7 +899,7 @@ export function useMidnight(): MidnightHook {
 
       if (normalizedCurrent && normalizedTarget && normalizedCurrent !== normalizedTarget) {
         throw new Error(
-          `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne DEX is targeting "${TARGET_NETWORK.toUpperCase()}". ` +
+          `Network Mismatch: Your wallet is connected to "${currentNetwork.toUpperCase()}", but Nocturne AI DEX is targeting "${TARGET_NETWORK.toUpperCase()}". ` +
           `Please switch your network in ${walletState.connectorName} settings to ${TARGET_NETWORK.toUpperCase()} before purchasing.`
         );
       }
