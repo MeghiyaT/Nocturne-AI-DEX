@@ -1,6 +1,6 @@
 <div align="center">
 
-# DataVault Exchange
+# Nocturne AI
 
 ### Prove your AI dataset is real — without showing anyone the data inside.
 
@@ -15,11 +15,11 @@
 
 ## What is this?
 
-DataVault Exchange is a **privacy-first marketplace for AI training datasets**.
+Nocturne AI is a **privacy-first marketplace for AI training datasets**.
 
 Here's the problem it solves: if you own a valuable dataset — patient records, financial data, proprietary research — you can't just hand it to a buyer to inspect before they pay. And a buyer can't pay for data they can't verify is real.
 
-DataVault breaks that deadlock. Using the **Midnight blockchain**, a data provider can mathematically *prove* their dataset is authentic and untampered — without ever revealing the records inside. The buyer gets certainty. The provider keeps their data private.
+Nocturne AI breaks that deadlock. Using the **Midnight blockchain**, a data provider can mathematically *prove* their dataset is authentic and untampered — without ever revealing the records inside. The buyer gets certainty. The provider keeps their data private.
 
 > **No cryptography knowledge required** to use this app. Just connect a wallet, upload your file, and the math happens automatically.
 

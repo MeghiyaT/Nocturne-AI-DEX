@@ -1,8 +1,8 @@
 {
-  "name": "datavault-exchange",
+  "name": "nocturne-ai",
   "version": "1.0.0",
   "type": "module",
-  "description": "DataVault Exchange — a privacy-preserving, GDPR/CCPA-compliant decentralized exchange for AI training datasets, built on Midnight Network with Compact smart contracts.",
+  "description": "Nocturne AI — a privacy-preserving, GDPR/CCPA-compliant decentralized exchange for AI training datasets, built on Midnight Network with Compact smart contracts.",
   "author": "Meghiya Tulse",
   "license": "MIT",
   "scripts": {

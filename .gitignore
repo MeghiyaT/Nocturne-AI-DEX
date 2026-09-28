@@ -11,6 +11,7 @@ contracts/managed/
 *.leveldb/
 midnight-level-db/
 datavault-state*/
+nocturne-state*/
 *.env.local
 .env.local
 

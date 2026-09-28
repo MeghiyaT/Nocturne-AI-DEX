@@ -1,9 +1,9 @@
-name: datavault-devnet
+name: nocturne-devnet
 
 services:
   node:
     image: midnightntwrk/midnight-node:1.0.0
-    container_name: datavault-node
+    container_name: nocturne-node
     ports:
       - "9944:9944"
     environment:
@@ -22,7 +22,7 @@ services:
 
   indexer:
     image: midnightntwrk/indexer-standalone:4.3.3
-    container_name: datavault-indexer
+    container_name: nocturne-indexer
     restart: on-failure
     ports:
       - "8088:8088"
@@ -48,7 +48,7 @@ services:
 
   proof-server:
     image: midnightntwrk/proof-server:8.1.0
-    container_name: datavault-proof-server
+    container_name: nocturne-proof-server
     command: ["midnight-proof-server -v"]
     ports:
       - "6300:6300"
