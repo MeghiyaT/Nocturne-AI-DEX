@@ -26,15 +26,15 @@
   --text-muted: #a1a1a6;
   --text-subtle: #6e6e73;
 
-  /* Accents */
-  --accent-blue: #2997ff;
-  --accent-emerald: #30d158;
-  --accent-amber: #f5a623;
-  --accent-rose: #ff453a;
+  /* Accents (Refined luxury dark palette, muted & non-glaring) */
+  --accent-blue: #60a5fa;
+  --accent-emerald: #34d399;
+  --accent-amber: #e5a950;
+  --accent-rose: #f87171;
 
   /* Badges */
-  --badge-bg: rgba(255, 255, 255, 0.06);
-  --badge-border: rgba(255, 255, 255, 0.12);
+  --badge-bg: rgba(255, 255, 255, 0.05);
+  --badge-border: rgba(255, 255, 255, 0.1);
 
   /* Radius & Shadows */
   --radius-xs: 6px;
@@ -195,13 +195,13 @@ p {
 }
 
 .btn-buy {
-  background: #2997ff;
+  background: #2563eb;
   color: #ffffff;
   font-weight: 600;
 }
 
 .btn-buy:hover {
-  background: #147ce5;
+  background: #1d4ed8;
 }
 
 .btn-ghost {
@@ -215,28 +215,28 @@ p {
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, rgba(255, 69, 58, 0.22) 0%, rgba(200, 20, 20, 0.12) 100%);
-  color: #ff6961;
-  border: 1px solid rgba(255, 69, 58, 0.45);
-  box-shadow: 0 0 14px rgba(255, 69, 58, 0.25);
-  font-weight: 600;
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  font-weight: 500;
 }
 
 .btn-danger:hover {
-  background: linear-gradient(135deg, rgba(255, 69, 58, 0.35) 0%, rgba(200, 20, 20, 0.2) 100%);
-  border-color: rgba(255, 69, 58, 0.65);
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.45);
   color: #ffffff;
 }
 
 .btn-amber {
-  background: rgba(245, 166, 35, 0.15);
-  color: #f5a623;
-  border: 1px solid rgba(245, 166, 35, 0.35);
-  font-weight: 600;
+  background: rgba(229, 169, 80, 0.1);
+  color: #e5a950;
+  border: 1px solid rgba(229, 169, 80, 0.28);
+  font-weight: 500;
 }
 
 .btn-amber:hover {
-  background: rgba(245, 166, 35, 0.25);
+  background: rgba(229, 169, 80, 0.18);
+  border-color: rgba(229, 169, 80, 0.45);
   color: #ffffff;
 }
 
@@ -270,40 +270,37 @@ p {
 }
 
 .badge-blue {
-  background: rgba(41, 151, 255, 0.12);
-  color: #2997ff;
-  border-color: rgba(41, 151, 255, 0.28);
+  background: rgba(96, 165, 250, 0.08);
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.22);
 }
 
 .badge-green {
-  background: rgba(48, 209, 88, 0.12);
-  color: #30d158;
-  border-color: rgba(48, 209, 88, 0.28);
+  background: rgba(52, 211, 153, 0.08);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.22);
 }
 
 .badge-amber {
-  background: rgba(245, 166, 35, 0.12);
-  color: #f5a623;
-  border-color: rgba(245, 166, 35, 0.28);
+  background: rgba(229, 169, 80, 0.08);
+  color: #e5a950;
+  border-color: rgba(229, 169, 80, 0.22);
 }
 
 .badge-silver-glow {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(215, 228, 245, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(215, 228, 245, 0.04) 100%);
   color: #ffffff;
-  border: 1px solid rgba(240, 246, 255, 0.45);
-  box-shadow: 0 0 14px rgba(220, 235, 255, 0.28), inset 0 1px 2px rgba(255, 255, 255, 0.35);
-  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
-  font-weight: 600;
+  border: 1px solid rgba(240, 246, 255, 0.3);
+  box-shadow: 0 0 10px rgba(220, 235, 255, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 
 .badge-red-glow {
-  background: linear-gradient(135deg, rgba(255, 69, 58, 0.18) 0%, rgba(180, 20, 20, 0.08) 100%);
-  color: #ff6961;
-  border: 1px solid rgba(255, 69, 58, 0.45);
-  box-shadow: 0 0 14px rgba(255, 69, 58, 0.35), inset 0 1px 2px rgba(255, 120, 120, 0.25);
-  text-shadow: 0 0 8px rgba(255, 69, 58, 0.5);
-  font-weight: 600;
+  background: rgba(248, 113, 113, 0.08);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  font-weight: 500;
   letter-spacing: 0.02em;
 }
 

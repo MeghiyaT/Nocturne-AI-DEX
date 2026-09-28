@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { TOAST_DURATION_MS } from './config';
+import { TOAST_DURATION_MS, TARGET_NETWORK } from './config';
 import './index.css';
-import { useMidnight } from './hooks/useMidnight';
+import { useMidnight, normalizeNetwork } from './hooks/useMidnight';
 import { useIndexer } from './hooks/useIndexer';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useContractBridge } from './hooks/useContractBridge';
@@ -255,6 +255,16 @@ function App() {
             showToast('Marketplace updated');
           }}
           onAddListing={(listing) => {
+            const currentNet = midnightHook.walletState.status === 'connected' ? midnightHook.walletState.network : '';
+            const isMismatch = !!(
+              midnightHook.walletState.status === 'connected' &&
+              (midnightHook.walletState.isNetworkMismatch ||
+                (currentNet && TARGET_NETWORK && normalizeNetwork(currentNet) !== normalizeNetwork(TARGET_NETWORK)))
+            );
+            if (isMismatch) {
+              showToast(`Listing blocked: wallet is on ${currentNet.toUpperCase()}, target is ${TARGET_NETWORK.toUpperCase()}`);
+              return;
+            }
             indexer.addOptimisticListing(listing);
             showToast(`Dataset "${listing.datasetName}" listed successfully`);
           }}
@@ -342,24 +352,18 @@ function App() {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.4rem',
+                gap: '0.45rem',
                 fontSize: '0.74rem',
                 fontWeight: 500,
                 padding: '0.22rem 0.65rem',
                 borderRadius: 'var(--radius-full)',
                 background: contractBridge.proofServerOnline
-                  ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(200, 215, 235, 0.07) 100%)'
-                  : 'linear-gradient(135deg, rgba(255, 69, 58, 0.18) 0%, rgba(180, 20, 20, 0.08) 100%)',
+                  ? 'rgba(255, 255, 255, 0.08)'
+                  : 'rgba(255, 255, 255, 0.04)',
                 border: contractBridge.proofServerOnline
-                  ? '1px solid rgba(240, 246, 255, 0.42)'
-                  : '1px solid rgba(255, 69, 58, 0.45)',
-                color: contractBridge.proofServerOnline ? '#ffffff' : '#ff6961',
-                boxShadow: contractBridge.proofServerOnline
-                  ? '0 0 12px rgba(220, 235, 255, 0.26), inset 0 1px 1px rgba(255, 255, 255, 0.35)'
-                  : '0 0 14px rgba(255, 69, 58, 0.35), inset 0 1px 1px rgba(255, 120, 120, 0.25)',
-                textShadow: contractBridge.proofServerOnline
-                  ? '0 0 8px rgba(255, 255, 255, 0.45)'
-                  : '0 0 8px rgba(255, 69, 58, 0.5)',
+                  ? '1px solid rgba(255, 255, 255, 0.2)'
+                  : '1px solid var(--border-subtle)',
+                color: contractBridge.proofServerOnline ? '#ffffff' : 'var(--text-muted)',
               }}
               title={contractBridge.proofServerOnline ? 'Proof server connected' : 'Proof server offline — local cryptographic fallback active'}
             >
@@ -368,10 +372,10 @@ function App() {
                   width: '6px',
                   height: '6px',
                   borderRadius: '50%',
-                  background: contractBridge.proofServerOnline ? '#ffffff' : '#ff453a',
+                  background: contractBridge.proofServerOnline ? '#ffffff' : '#e5a950',
                   boxShadow: contractBridge.proofServerOnline
-                    ? '0 0 6px #ffffff, 0 0 10px rgba(255, 255, 255, 0.9)'
-                    : '0 0 6px #ff453a, 0 0 12px rgba(255, 69, 58, 0.95)',
+                    ? '0 0 6px rgba(255, 255, 255, 0.8)'
+                    : 'none',
                 }}
               />
               <span>Proof Server: {contractBridge.proofServerOnline ? 'Online' : 'Offline (Local Anchor Mode)'}</span>
