@@ -8,6 +8,7 @@ import type { UserProfileHook, PurchaseRecord, SaleRecord } from '../hooks/useUs
 import type { ContractBridgeHook } from '../hooks/useContractBridge';
 import type { NavSection } from '../App';
 import { ProfileDashboard } from './ProfileDashboard';
+import { isListingOwner } from '../utils/datasetUtils';
 import {
   ShieldCheck,
   Search,
@@ -117,16 +118,7 @@ export function DatasetExchange({
     const registeredIds = new Set(
       profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)
     );
-    const isOwner = Boolean(
-      walletAddress && (
-        (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
-        (listing.providerCommit && (
-          listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
-          listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
-        )) ||
-        registeredIds.has(listing.datasetId)
-      )
-    );
+    const isOwner = isListingOwner(listing, walletAddress, registeredIds);
     if (isOwner) {
       return;
     }
@@ -597,16 +589,7 @@ function MarketplaceView({
               const registeredIds = new Set(
                 profileHook.transactions.filter((t) => t.type === 'registered').map((t) => t.datasetId)
               );
-              const isOwner = Boolean(
-                walletAddress && (
-                  (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
-                  (listing.providerCommit && (
-                    listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
-                    listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
-                  )) ||
-                  registeredIds.has(listing.datasetId)
-                )
-              );
+              const isOwner = isListingOwner(listing, walletAddress, registeredIds);
               return (
                 <DatasetCard
                   key={listing.datasetId}
@@ -900,16 +883,7 @@ function PurchaseModal({
     [profileHook.transactions]
   );
 
-  const isOwner = Boolean(
-    walletAddress && (
-      (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
-      (listing.providerCommit && (
-        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
-        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
-      )) ||
-      registeredIds.has(listing.datasetId)
-    )
-  );
+  const isOwner = isListingOwner(listing, walletAddress, registeredIds);
 
   const isConnected = walletState.status === 'connected' && !!walletAddress;
 
@@ -1533,30 +1507,43 @@ function RegisterView({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setFileContent(text);
-      setFileBytes(new TextEncoder().encode(text));
+      const buffer = event.target?.result as ArrayBuffer;
+      const bytes = new Uint8Array(buffer);
+      setFileBytes(bytes);
 
-      if (file.name.endsWith('.json')) {
-        try {
-          const parsed = JSON.parse(text);
-          if (Array.isArray(parsed)) {
-            setRowCount(`${parsed.length} Records`);
-            setSamplePreview(JSON.stringify(parsed.slice(0, 2), null, 2));
-          } else {
-            setRowCount('1 Record');
-            setSamplePreview(JSON.stringify(parsed, null, 2).slice(0, 300));
+      try {
+        const textDecoder = new TextDecoder('utf-8', { fatal: false });
+        const text = textDecoder.decode(bytes);
+        setFileContent(text);
+
+        if (file.name.endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(text);
+            if (Array.isArray(parsed)) {
+              setRowCount(`${parsed.length} Records`);
+              setSamplePreview(JSON.stringify(parsed.slice(0, 2), null, 2));
+            } else {
+              setRowCount('1 Record');
+              setSamplePreview(JSON.stringify(parsed, null, 2).slice(0, 300));
+            }
+          } catch {
+            setSamplePreview(text.slice(0, 300));
           }
-        } catch {
-          setSamplePreview(text.slice(0, 300));
+        } else if (file.name.endsWith('.csv') || file.name.endsWith('.tsv') || file.name.endsWith('.txt')) {
+          const lines = text.split('\n').filter((l) => l.trim().length > 0);
+          setRowCount(`${Math.max(1, lines.length - 1)} Rows`);
+          setSamplePreview(lines.slice(0, 5).join('\n'));
+        } else {
+          setRowCount(`${bytes.length.toLocaleString()} Bytes`);
+          setSamplePreview(`[Binary Dataset: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]`);
         }
-      } else {
-        const lines = text.split('\n').filter((l) => l.trim().length > 0);
-        setRowCount(`${Math.max(1, lines.length - 1)} Rows`);
-        setSamplePreview(lines.slice(0, 5).join('\n'));
+      } catch {
+        setFileContent('');
+        setRowCount(`${bytes.length.toLocaleString()} Bytes`);
+        setSamplePreview(`[Binary Dataset: ${file.name} (${(file.size / 1024).toFixed(1)} KB)]`);
       }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -1565,7 +1552,7 @@ function RegisterView({
       setErrorMsg('Please enter a dataset name.');
       return;
     }
-    if (!fileContent.trim() && !fileBytes) {
+    if (!fileBytes && !fileContent.trim()) {
       setErrorMsg('Please select a dataset file.');
       return;
     }
@@ -1609,6 +1596,16 @@ function RegisterView({
       const sellerNick =
         profileHook?.profile?.nickname || 'AI Researcher';
 
+      // Cap stored downloadPayload to prevent browser 5MB localStorage exhaustion
+      const isPayloadManageable = bytes.length <= 500_000;
+      const safePayload = isPayloadManageable
+        ? (fileContent || samplePreview)
+        : (samplePreview || `[Dataset size ${(bytes.length / 1024 / 1024).toFixed(2)} MB - stored on provider node]`);
+
+      const detectedFormat = fileContent.trim().startsWith('{') || fileContent.trim().startsWith('[')
+        ? 'json'
+        : (fileContent.includes(',') ? 'csv' : 'parquet');
+
       const newListing: DataListing = {
         datasetId: regResult.datasetId,
         providerCommit,
@@ -1626,8 +1623,8 @@ function RegisterView({
         sellerNickname: sellerNick,
         accessTier: pricingModel === 'free' ? 'free' : 'commercial',
         sampleData: samplePreview || fileContent.slice(0, 300),
-        downloadPayload: fileContent,
-        format: fileContent.trim().startsWith('{') || fileContent.trim().startsWith('[') ? 'json' : 'csv',
+        downloadPayload: safePayload,
+        format: detectedFormat,
         verifiedOnChain: true,
       };
 
@@ -1906,30 +1903,59 @@ function VerifierView({
     setCustomFileName(file.name);
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target?.result as string;
-      setCustomFileContent(text);
-      setCustomFileBytes(new TextEncoder().encode(text));
+      const buffer = event.target?.result as ArrayBuffer;
+      const bytes = new Uint8Array(buffer);
+      setCustomFileBytes(bytes);
+      try {
+        const textDecoder = new TextDecoder('utf-8', { fatal: false });
+        setCustomFileContent(textDecoder.decode(bytes));
+      } catch {
+        setCustomFileContent('');
+      }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleRunVerification = async () => {
     const targetAnchor = verifierMode === 'catalog' ? activeListing?.dataCommitment : customAnchor.trim();
-    if (!targetAnchor) return;
+    if (!targetAnchor) {
+      setStatus('failed');
+      setVerificationLog(['❌ No target integrity anchor provided. Please select a catalog listing or input a valid hex anchor.']);
+      return;
+    }
 
     setStatus('running');
     setVerificationLog(['Initiating cryptographic integrity verification against Midnight zero-knowledge state...']);
 
     try {
-      let payloadBytes: Uint8Array;
+      let payloadBytes: Uint8Array | null = null;
       if (verifierMode === 'catalog') {
-        const payloadStr = initialPayload || activeListing?.downloadPayload || activeListing?.sampleData || activeListing?.datasetName || '';
-        payloadBytes = new TextEncoder().encode(payloadStr);
+        if (customFileBytes && customFileBytes.length > 0) {
+          payloadBytes = customFileBytes;
+        } else if (initialPayload) {
+          payloadBytes = new TextEncoder().encode(initialPayload);
+        } else if (
+          activeListing?.downloadPayload &&
+          !activeListing.downloadPayload.startsWith('[Dataset size') &&
+          !activeListing.downloadPayload.startsWith('[Stored on provider')
+        ) {
+          payloadBytes = new TextEncoder().encode(activeListing.downloadPayload);
+        }
       } else {
-        payloadBytes = customFileBytes || new TextEncoder().encode(customFileContent || customAnchor);
+        payloadBytes = customFileBytes || (customFileContent ? new TextEncoder().encode(customFileContent) : null);
       }
 
-      // Compute local SHA-256 commitment
+      if (!payloadBytes || payloadBytes.length === 0) {
+        setStatus('failed');
+        setVerificationLog([
+          `Target Anchor: ${targetAnchor.slice(0, 26)}…`,
+          '❌ No dataset content available to verify.',
+          'Please upload the original dataset file to test its cryptographic integrity.',
+        ]);
+        return;
+      }
+
+      // Compute local SHA-256 commitment from slices
       const { datasetSlicesFromBytesBrowser, bytes32ToHex } = await import('../utils/datasetUtils');
       const slices = await datasetSlicesFromBytesBrowser(payloadBytes);
       const enc = new TextEncoder();
@@ -1946,6 +1972,22 @@ function VerifierView({
       const hashBuffer = await crypto.subtle.digest('SHA-256', combined as unknown as BufferSource);
       const localCommitment = '0x' + bytes32ToHex(new Uint8Array(hashBuffer));
 
+      const cleanLocal = localCommitment.replace(/^0x/i, '').toLowerCase();
+      const cleanTarget = targetAnchor.replace(/^0x/i, '').toLowerCase();
+
+      // STRICT VALIDATION: If hashes do not match, fail verification immediately!
+      if (cleanLocal !== cleanTarget) {
+        setStatus('failed');
+        setVerificationLog([
+          `Local Computed Hash: ${localCommitment.slice(0, 26)}…`,
+          `Target Anchor:       ${targetAnchor.slice(0, 26)}…`,
+          '❌ Cryptographic Integrity Mismatch!',
+          'The provided dataset content produces a commitment that DOES NOT MATCH the registered anchor.',
+          'The file may have been modified, truncated, corrupted, or does not correspond to this listing.',
+        ]);
+        return;
+      }
+
       const datasetIdToVerify = verifierMode === 'catalog' && activeListing
         ? activeListing.datasetId
         : '0x' + Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', payloadBytes as unknown as BufferSource))).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -1956,14 +1998,14 @@ function VerifierView({
       const logs: string[] = [
         `Local Computed Hash: ${localCommitment.slice(0, 26)}…`,
         `Target Anchor:       ${targetAnchor.slice(0, 26)}…`,
+        `✓ Cryptographic commitment match confirmed! Content integrity 100% verified.`,
       ];
 
       if (result.success && result.txHash) {
         logs.push(`✓ Zero-Knowledge proof generated and confirmed on Midnight!`);
         logs.push(`✓ Transaction ID: ${result.txHash}`);
       } else if (result.proofServerOffline) {
-        logs.push(`✓ Cryptographic commitment match confirmed.`);
-        logs.push(`ℹ Proof server offline — local cryptographic proof verified against on-chain anchor.`);
+        logs.push(`ℹ Proof server offline — local cryptographic proof verified against registered anchor.`);
       } else if (result.success) {
         logs.push(`✓ Zero-Knowledge integrity anchor verified against Midnight ledger state.`);
       } else {
@@ -2352,16 +2394,7 @@ function InspectModal({
     [profileHook.transactions]
   );
 
-  const isOwner = Boolean(
-    walletAddress && (
-      (listing.sellerAddress && listing.sellerAddress.trim().toLowerCase() === walletAddress.trim().toLowerCase()) ||
-      (listing.providerCommit && (
-        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase() ||
-        listing.providerCommit.trim().toLowerCase() === walletAddress.trim().toLowerCase().replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
-      )) ||
-      registeredIds.has(listing.datasetId)
-    )
-  );
+  const isOwner = isListingOwner(listing, walletAddress, registeredIds);
 
   const displayNickname =
     listing.sellerNickname ||

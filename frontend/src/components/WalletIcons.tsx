@@ -59,42 +59,30 @@ export function LaceLogo({ size = 20, className, style }: IconProps) {
 }
 
 /**
- * Authentic 1AM Midnight Wallet SVG Logo
- * The 1AM Midnight Clock dial with hands pointing to 1:00 AM on a clean transparent background.
+ * Authentic 1AM Midnight Wallet SVG Logo (from 1am.xyz)
+ * The signature 1AM circular emblem with the 1:00 indicator.
  */
 export function OneAmLogo({ size = 20, className, style }: IconProps) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 48 48"
+      viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      style={{ display: 'inline-block', verticalAlign: 'middle', flexShrink: 0, ...style }}
+      style={{
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        flexShrink: 0,
+        color: '#ffffff',
+        ...style,
+      }}
     >
-      <defs>
-        <linearGradient id="oneam-clock-ring" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#67e8f9" />
-          <stop offset="50%" stopColor="#06b6d4" />
-          <stop offset="100%" stopColor="#3b82f6" />
-        </linearGradient>
-      </defs>
-      {/* Clock Outer Ring */}
-      <circle cx="24" cy="25" r="18" stroke="url(#oneam-clock-ring)" strokeWidth="3.5" />
-      {/* Top Stopwatch / Crown pip (at 12:00) */}
-      <rect x="22" y="3" width="4" height="3.5" rx="1.5" fill="#67e8f9" />
-      {/* 12 o'clock minute hand (pointing straight up) */}
-      <line x1="24" y1="25" x2="24" y2="12" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
-      {/* 1 o'clock hour hand (pointing to 1 AM, 30 deg angle) */}
-      <line x1="24" y1="25" x2="31" y2="16" stroke="#67e8f9" strokeWidth="3.5" strokeLinecap="round" />
-      {/* Center hub */}
-      <circle cx="24" cy="25" r="3.2" fill="#ffffff" />
-      <circle cx="24" cy="25" r="1.4" fill="#06b6d4" />
-      {/* Hour tick marks */}
-      <circle cx="38" cy="25" r="1.2" fill="rgba(255,255,255,0.7)" />
-      <circle cx="24" cy="39" r="1.2" fill="rgba(255,255,255,0.7)" />
-      <circle cx="10" cy="25" r="1.2" fill="rgba(255,255,255,0.7)" />
+      <path
+        d="M22.3487 1.34876C29.8067 4.61768 33.6916 13.1099 31.0886 21.0171C28.3273 29.4053 19.31 33.9593 10.9486 31.1885C2.58715 28.4177 -1.95282 19.3711 0.808541 10.9829C3.4091 3.08318 11.5581 -1.41591 19.4825 0.401224L18.5554 3.21739C12.1869 1.90495 5.688 5.56745 3.60067 11.9081C1.35211 18.7386 5.06205 26.1311 11.8707 28.3874C18.6793 30.6436 26.0482 26.9213 28.2967 20.0909C30.3865 13.7427 27.3303 6.90924 21.4218 4.16441L22.3487 1.34876ZM20.0268 3.61162C20.5076 3.77095 20.9729 3.95588 21.4218 4.16441L16.9003 17.8994L14.0347 16.9498L18.5554 3.21739C19.0473 3.31878 19.5385 3.44981 20.0268 3.61162Z"
+        fill="currentColor"
+      />
     </svg>
   );
 }

@@ -8,6 +8,7 @@ import type { UserProfileHook, PurchaseRecord } from '../hooks/useUserProfile';
 import type { NavSection } from '../App';
 import { AvatarIcon, AVATAR_OPTIONS } from './AvatarIcon';
 import { ConfirmModal } from './ConfirmModal';
+import { isListingOwner } from '../utils/datasetUtils';
 import {
   User,
   Database,
@@ -76,19 +77,9 @@ export function ProfileDashboard({
       .map((t) => t.datasetId)
   );
 
-  const myListings = registryState.listings.filter((l) => {
-    if (!walletAddress) return false;
-    const cleanAddr = walletAddress.trim().toLowerCase();
-    const cleanSeller = (l.sellerAddress || '').trim().toLowerCase();
-    const cleanProvider = (l.providerCommit || '').trim().toLowerCase();
-    const isSellerMatch = cleanSeller.length > 0 && cleanSeller === cleanAddr;
-    const isProviderMatch = cleanProvider.length > 0 && (
-      cleanProvider === cleanAddr ||
-      cleanProvider === cleanAddr.replace(/^mn_addr(?:_[a-z0-9]+)?1/, '')
-    );
-    const isTxMatch = registeredIds.has(l.datasetId);
-    return isSellerMatch || isProviderMatch || isTxMatch;
-  });
+  const myListings = registryState.listings.filter((l) =>
+    isListingOwner(l, walletAddress, registeredIds)
+  );
 
   const activeListings = myListings.filter((l) => l.isActive !== false);
   const archivedListings = myListings.filter((l) => l.isActive === false);
