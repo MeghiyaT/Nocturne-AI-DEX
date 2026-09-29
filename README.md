@@ -4,7 +4,7 @@
 
 ### Prove your AI dataset is real — without showing anyone the data inside.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-ai--dataset--dex.vercel.app-7928CA?style=for-the-badge&logo=vercel&logoColor=white)](https://ai-dataset-dex.vercel.app/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-nocturne--ai--dex.vercel.app-7928CA?style=for-the-badge&logo=vercel&logoColor=white)](https://nocturne-ai-dex.vercel.app/)
 [![Watch Demo](https://img.shields.io/badge/Demo_Video-Watch_on_Loom-0080FF?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/06f0afedace648bf866668f6adc52aee)
 [![Tests](https://github.com/MeghiyaT/AI-Dataset-DEX/actions/workflows/test.yml/badge.svg)](https://github.com/MeghiyaT/AI-Dataset-DEX/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-amber?style=for-the-badge)](package.json)
@@ -29,7 +29,7 @@ Nocturne AI DEX breaks that deadlock. Using the **Midnight blockchain**, a data 
 
 | | |
 |---|---|
-| **Live App** | [ai-dataset-dex.vercel.app](https://ai-dataset-dex.vercel.app/) |
+| **Live App** | [nocturne-ai-dex.vercel.app](https://nocturne-ai-dex.vercel.app/) |
 | **3-Minute Demo Video** | [Watch on Loom](https://www.loom.com/share/06f0afedace648bf866668f6adc52aee) |
 
 ---
@@ -151,12 +151,12 @@ Expected output:
 
 ![37 passing tests in Vitest](docs/screenshots/tests.png)
 
-**6. Deploy the contract** *(optional — connects to Midnight Preview testnet)*
+**6. Deploy the contract** *(optional — connects to Midnight Preprod testnet)*
 
-First, fund your wallet from the [Preview faucet](https://midnight-tmnight-preview.nethermind.dev), then:
+First, fund your wallet from the [Preprod faucet](https://faucet.preprod.midnight.network), then:
 
 ```bash
-npm run setup -- --network preview
+npm run setup -- --network preprod
 ```
 
 **7. Start the frontend**
@@ -176,10 +176,10 @@ cp frontend/.env.example frontend/.env.local
 ```
 
 ```env
-VITE_NETWORK=preview
-VITE_CONTRACT_ADDRESS=74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f
-VITE_INDEXER_URL=https://indexer.preview.midnight.network/api/v4/graphql
-VITE_INDEXER_WS_URL=wss://indexer.preview.midnight.network/api/v4/graphql/ws
+VITE_NETWORK=preprod
+VITE_CONTRACT_ADDRESS=7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45
+VITE_INDEXER_URL=https://indexer.preprod.midnight.network/api/v4/graphql
+VITE_INDEXER_WS_URL=wss://indexer.preprod.midnight.network/api/v4/graphql/ws
 ```
 
 ---
@@ -188,20 +188,20 @@ VITE_INDEXER_WS_URL=wss://indexer.preview.midnight.network/api/v4/graphql/ws
 
 | Network | Status | Contract Address | Explorer Link | Notes |
 |---|---|---|---|---|
-| **Preview** (testnet) | **Active (Latest)** | `74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f` | [Preview Explorer](https://explorer.preview.midnight.network/contracts/stream/74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f) | Multi-user open provider commitment + on-chain category architecture |
-| **Preprod** (testnet) | *Legacy / Outdated* | `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45` | [Preprod Explorer](https://explorer.preprod.midnight.network/contracts/stream/7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45) | Preserved for historical auditability and reference to early transaction records |
+| **Preprod** (testnet) | **Active (Latest)** | `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45` | [Preprod Explorer](https://explorer.preprod.midnight.network/contracts/7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45) | Primary target network — active ZK dataset registry & marketplace contract |
+| **Preview** (testnet) | *Alternate Deployment* | `74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f` | [Preview Explorer](https://explorer.preview.midnight.network/contracts/stream/74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f) | Multi-user open provider commitment + on-chain category architecture |
 
 > [!NOTE]
-> **Why the Legacy Preprod Address is Kept**:
-> Due to synchronization bottlenecks and sync issues with the Midnight Preprod network (where historical note scanning across 2M+ blocks caused extended sync delays), the active deployment was migrated to Midnight Preview (`74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f`). The legacy Preprod address (`7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45`) is retained for historical auditability and reference to earlier testnet transactions.
+> **Active Preprod Deployment**:
+> The primary Nocturne AI DEX deployment is active on the Midnight Preprod network at `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45`. You can verify transactions, contract interactions, and ledger states directly on the Midnight Preprod block explorer (NightScan). The Preview testnet deployment (`74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f`) remains documented for alternate network compatibility.
 
-![Successful contract deployment to Preview network](docs/screenshots/deploy.png)
+![Successful contract deployment to Preprod network](docs/screenshots/deploy.png)
 
-**Verify contract state via Preview Indexer GraphQL:**
+**Verify contract state via Preprod Indexer GraphQL:**
 ```bash
-curl -X POST https://indexer.preview.midnight.network/api/v4/graphql \
+curl -X POST https://indexer.preprod.midnight.network/api/v4/graphql \
   -H "Content-Type: application/json" \
-  -d '{"query": "{ contractAction(address: \"74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f\") { address } }"}'
+  -d '{"query": "{ contractAction(address: \"7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45\") { address } }"}'
 ```
 
 ---
