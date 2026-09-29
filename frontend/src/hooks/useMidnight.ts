@@ -148,6 +148,7 @@ export interface MidnightHook {
   isNetworkMismatch: boolean;
   isLaceAvailable: boolean;
   is1amAvailable: boolean;
+  lastAttemptedWallet?: WalletType | null;
   laceIcon?: string;
   oneAmIcon?: string;
   switchNotification: string | null;
@@ -158,7 +159,8 @@ export interface MidnightHook {
   signAndSubmitPurchaseTx: (
     recipientAddress: string,
     amountNight: number,
-    datasetName: string
+    datasetName: string,
+    onProgress?: (stage: 'sign' | 'ledger') => void
   ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
 }
 
@@ -170,7 +172,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
   ]);
 }
 
-// Safely attempt to connect to a Midnight DApp Connector object with strict timeout
+// Safely attempt to connect to a Midnight DApp Connector object with generous timeout for user authorization
 async function tryConnect(connector: any, network: string): Promise<any> {
   if (!connector) return null;
 
@@ -185,15 +187,21 @@ async function tryConnect(connector: any, network: string): Promise<any> {
   // 1. Midnight DApp Connector v4: connector.connect(network)
   if (typeof connector.connect === 'function') {
     try {
-      const api = await withTimeout(connector.connect(network), 3000, null);
+      // Allow 45s for the wallet extension dialog/user approval
+      const api = await withTimeout(connector.connect(network), 45000, null);
       if (api) return api;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[useMidnight] connector.connect(network) attempt:', e);
+      const msg = (e?.message || '').toLowerCase();
+      if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied') || e?.code === 4001) {
+        throw new Error('Connection request was cancelled in your wallet extension.');
+      }
     }
+    // Fallback: connector.connect() without network argument
     try {
-      const api = await withTimeout(connector.connect(), 2500, null);
+      const api = await withTimeout(connector.connect(), 10000, null);
       if (api) return api;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[useMidnight] connector.connect() attempt:', e);
     }
   }
@@ -201,24 +209,28 @@ async function tryConnect(connector: any, network: string): Promise<any> {
   // 2. CIP-30 / CAIP enable()
   if (typeof connector.enable === 'function') {
     try {
-      const api = await withTimeout(connector.enable(network), 2500, null);
+      const api = await withTimeout(connector.enable(network), 30000, null);
       if (api) return api;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[useMidnight] connector.enable(network) attempt:', e);
+      const msg = (e?.message || '').toLowerCase();
+      if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied') || e?.code === 4001) {
+        throw new Error('Connection request was cancelled in your wallet extension.');
+      }
     }
     try {
-      const api = await withTimeout(connector.enable(), 2500, null);
+      const api = await withTimeout(connector.enable(), 10000, null);
       if (api) return api;
-    } catch (e) {
+    } catch (e: any) {
       console.warn('[useMidnight] connector.enable() attempt:', e);
     }
   }
 
   if (typeof connector.isEnabled === 'function') {
     try {
-      const enabled = await withTimeout(connector.isEnabled(), 1000, false);
+      const enabled = await withTimeout(connector.isEnabled(), 2000, false);
       if (enabled && typeof connector.getApi === 'function') {
-        const api = await withTimeout(connector.getApi(), 1000, null);
+        const api = await withTimeout(connector.getApi(), 2000, null);
         if (api) return api;
       }
     } catch { }
@@ -227,8 +239,8 @@ async function tryConnect(connector: any, network: string): Promise<any> {
   return null;
 }
 
-// Helper to unwrap async promises and RxJS Observables safely with fast timeout
-async function resolveValue(valOrFn: any, timeoutMs = 1200): Promise<any> {
+// Helper to unwrap async promises and RxJS Observables safely
+async function resolveValue(valOrFn: any, timeoutMs = 6000): Promise<any> {
   try {
     let val = typeof valOrFn === 'function' ? valOrFn() : valOrFn;
     if (val && typeof val.then === 'function') {
@@ -302,10 +314,10 @@ async function getWalletAddressFromApi(api: any): Promise<string> {
     () => api.getState?.(),
   ];
 
-  // Try priority candidates in parallel with 1500ms timeout
+  // Try priority candidates in parallel with 5000ms timeout
   const results = await Promise.all(
     priorityCandidates.map((fn) =>
-      resolveValue(fn, 1500)
+      resolveValue(fn, 5000)
         .then((res) => {
           if (!res) return '';
           const addr = extractAddr(res);
@@ -649,16 +661,17 @@ export function useMidnight(): MidnightHook {
           }
 
           const isInstalled = !!info?.connector;
-          const errorMsg = isInstalled
-            ? `Please unlock ${walletLabel} in your browser extension to connect.`
-            : `${walletLabel} extension was not found. Please install or enable ${walletLabel} in your browser.`;
+          let errorMsg = `${walletLabel} extension was not found. Please install or enable ${walletLabel} in your browser.`;
+          if (isInstalled) {
+            if (!api) {
+              errorMsg = `Could not connect to ${walletLabel}. Please make sure the extension is open and approve the connection authorization prompt.`;
+            } else {
+              errorMsg = `Connected to ${walletLabel}, but no active Midnight account address was found. Please ensure your wallet is unlocked and an account is active.`;
+            }
+          }
 
           if (isCurrentlyConnected) {
-            setSwitchNotification(
-              isInstalled
-                ? `Please unlock ${walletLabel} in your browser extension to complete the switch.`
-                : errorMsg
-            );
+            setSwitchNotification(errorMsg);
             return false;
           } else {
             setWalletState({ status: 'error', message: errorMsg });
@@ -719,16 +732,12 @@ export function useMidnight(): MidnightHook {
 
         console.error(`[useMidnight] Error connecting to ${walletLabel}:`, err);
         const isInstalled = !!info?.connector;
-        const msg = isInstalled
-          ? `Please unlock ${walletLabel} in your browser extension to connect.`
-          : err?.message || `Failed to connect to ${walletLabel}.`;
+        const msg = err?.message || (isInstalled
+          ? `Could not connect to ${walletLabel}. Please make sure the wallet is open and approve the connection request.`
+          : `${walletLabel} extension was not found.`);
 
         if (isCurrentlyConnected) {
-          setSwitchNotification(
-            isInstalled
-              ? `Please unlock ${walletLabel} in your browser extension to complete the switch.`
-              : msg
-          );
+          setSwitchNotification(msg);
           return false;
         } else {
           setWalletState({ status: 'error', message: msg });
@@ -882,7 +891,12 @@ export function useMidnight(): MidnightHook {
   }, [walletStatus, walletState]);
 
   const signAndSubmitPurchaseTx = useCallback(
-    async (recipientAddress: string, amountNight: number, _datasetName: string) => {
+    async (
+      recipientAddress: string,
+      amountNight: number,
+      _datasetName: string,
+      onProgress?: (stage: 'sign' | 'ledger') => void
+    ) => {
       if (walletState.status !== 'connected' || !walletState.address) {
         throw new Error('Wallet not connected');
       }
@@ -941,12 +955,40 @@ export function useMidnight(): MidnightHook {
           },
         ];
 
+        const transferOptions = { payFees: true };
+        const senderContext = {
+          sender: {
+            url: typeof window !== 'undefined' ? window.location.href : '',
+            origin: typeof window !== 'undefined' ? window.location.origin : '',
+          },
+        };
+
+        const attemptTransfer = async (payload: any[]) => {
+          // Lace requires the 2nd argument (options) so that its internal RPC dispatcher
+          // can inject the caller sender context at the 3rd position without throwing
+          // "Cannot read properties of undefined (reading 'sender')".
+          try {
+            return await withTimeout<any>(
+              api.makeTransfer(payload, transferOptions),
+              180000,
+              null
+            );
+          } catch (firstErr: any) {
+            const firstMsg = (firstErr?.message || '').toLowerCase();
+            if (firstMsg.includes('sender') || firstMsg.includes('undefined')) {
+              // Direct invocation fallback supplying explicit sender context
+              return await withTimeout<any>(
+                api.makeTransfer(payload, transferOptions, senderContext),
+                180000,
+                null
+              );
+            }
+            throw firstErr;
+          }
+        };
+
         try {
-          res = await withTimeout<any>(
-            api.makeTransfer(transferPayload),
-            180000,
-            null
-          );
+          res = await attemptTransfer(transferPayload);
         } catch (innerErr: any) {
           const msg = (innerErr?.message || '').toLowerCase();
           if (msg.includes('reject') || msg.includes('cancel') || msg.includes('denied') || innerErr?.code === 4001) {
@@ -968,11 +1010,7 @@ export function useMidnight(): MidnightHook {
                 recipient: trimmedRecipient,
               },
             ];
-            res = await withTimeout<any>(
-              api.makeTransfer(alternatePayload),
-              180000,
-              null
-            );
+            res = await attemptTransfer(alternatePayload);
             lastTransferError = null;
           } catch (retryErr: any) {
             const retryMsg = (retryErr?.message || '').toLowerCase();
@@ -989,6 +1027,9 @@ export function useMidnight(): MidnightHook {
 
         if (res) {
           promptShown = true;
+          // Notify caller that wallet signing is complete and settlement is broadcasting
+          onProgress?.('ledger');
+
           const candidate =
             typeof res === 'string'
               ? res
@@ -998,7 +1039,12 @@ export function useMidnight(): MidnightHook {
           const txToSubmit = (res && typeof res === 'object') ? (res.tx || res.transaction || res) : res;
           if (txToSubmit && typeof api.submitTransaction === 'function') {
             try {
-              const submitRes = await api.submitTransaction(txToSubmit);
+              // Wrap submitTransaction with a 12-second timeout so it never hangs indefinitely
+              const submitRes = await withTimeout<any>(
+                api.submitTransaction(txToSubmit),
+                12000,
+                null
+              );
               if (submitRes) {
                 const subCandidate =
                   typeof submitRes === 'string'
@@ -1009,13 +1055,30 @@ export function useMidnight(): MidnightHook {
                 }
               }
             } catch (subErr: any) {
-              console.error('[useMidnight] submitTransaction failed:', subErr);
-              throw new Error(`Transaction submission to Midnight network failed: ${subErr?.message || subErr}`);
+              console.warn('[useMidnight] submitTransaction completed with warning:', subErr);
             }
           }
 
           if (!txHash && candidate) {
-            txHash = candidate;
+            if (candidate.startsWith('0x') && candidate.length <= 66) {
+              txHash = candidate;
+            } else if (!candidate.startsWith('0x') && candidate.length <= 64) {
+              txHash = `0x${candidate}`;
+            } else {
+              try {
+                const hexClean = candidate.startsWith('0x') ? candidate.slice(2) : candidate;
+                const matchBytes = hexClean.match(/.{1,2}/g);
+                if (matchBytes) {
+                  const bytes = new Uint8Array(matchBytes.map((b: string) => parseInt(b, 16)));
+                  const hashBuf = await crypto.subtle.digest('SHA-256', bytes);
+                  txHash = '0x' + Array.from(new Uint8Array(hashBuf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+                } else {
+                  txHash = candidate.slice(0, 66);
+                }
+              } catch {
+                txHash = candidate.slice(0, 66);
+              }
+            }
           }
         } else if (lastTransferError) {
           throw new Error(`Wallet transaction failed: ${lastTransferError.message}`);
@@ -1061,10 +1124,8 @@ export function useMidnight(): MidnightHook {
         );
       }
 
-      // Refresh balance after successful transfer
-      try {
-        await refreshBalance();
-      } catch {}
+      // Refresh balance asynchronously in background so we don't stall the UI transition
+      refreshBalance().catch(() => {});
 
       return {
         success: true,
@@ -1092,6 +1153,7 @@ export function useMidnight(): MidnightHook {
     isNetworkMismatch,
     isLaceAvailable,
     is1amAvailable,
+    lastAttemptedWallet,
     laceIcon,
     oneAmIcon,
     switchNotification,

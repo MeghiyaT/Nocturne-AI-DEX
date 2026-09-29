@@ -53,7 +53,8 @@ interface Props {
   onSignAndSubmitPurchaseTx?: (
     recipientAddress: string,
     amountNight: number,
-    datasetName: string
+    datasetName: string,
+    onProgress?: (stage: 'sign' | 'ledger') => void
   ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
   onRefreshBalance?: () => void;
   laceIcon?: string;
@@ -867,7 +868,8 @@ function PurchaseModal({
   onSignAndSubmitPurchaseTx?: (
     recipientAddress: string,
     amountNight: number,
-    datasetName: string
+    datasetName: string,
+    onProgress?: (stage: 'sign' | 'ledger') => void
   ) => Promise<{ success: boolean; txHash: string; promptShown: boolean }>;
   onRefreshBalance?: () => Promise<any> | void;
   onSelectSection?: (section: NavSection) => void;
@@ -950,7 +952,12 @@ function PurchaseModal({
           throw new Error('Wallet transaction provider is not available.');
         }
         try {
-          const signRes = await onSignAndSubmitPurchaseTx(sellerAddr, priceNum, listing.datasetName);
+          const signRes = await onSignAndSubmitPurchaseTx(
+            sellerAddr,
+            priceNum,
+            listing.datasetName,
+            (stage) => setProcessStage(stage)
+          );
           if (!signRes || !signRes.txHash) {
             throw new Error('Wallet transaction was not confirmed or returned no hash.');
           }
@@ -974,10 +981,13 @@ function PurchaseModal({
       setProcessStage('ledger');
       if (onRefreshBalance) {
         try {
-          await onRefreshBalance();
+          const res = onRefreshBalance();
+          if (res && typeof res.then === 'function') {
+            await Promise.race([res, new Promise((r) => setTimeout(r, 2000))]);
+          }
         } catch {}
       }
-      await new Promise((resolve) => setTimeout(resolve, 1100));
+      await new Promise((resolve) => setTimeout(resolve, 800));
 
       if (!txHash) {
         throw new Error('Payment settlement failed: No confirmed transaction hash.');

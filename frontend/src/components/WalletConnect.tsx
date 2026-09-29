@@ -259,7 +259,11 @@ export function WalletConnect({ hook }: Props) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, color: 'var(--text-main)', fontSize: '0.92rem' }}>
                   <Info size={16} color="var(--accent-rose)" />
-                  <span>Wallet Unlock Required</span>
+                  <span>
+                    {walletState.message.toLowerCase().includes('unlock')
+                      ? 'Wallet Unlock Required'
+                      : 'Connection Notice'}
+                  </span>
                 </div>
                 <button
                   onClick={() => setShowMenu(false)}
@@ -270,30 +274,47 @@ export function WalletConnect({ hook }: Props) {
               </div>
 
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: 1.45 }}>
-                Your browser wallet extension is currently locked. Unlock your wallet and retry:
+                {walletState.message || 'There was an issue connecting to your browser wallet.'}
               </p>
 
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="btn btn-secondary btn-sm"
-                  style={{ flex: 1 }}
-                  onClick={() => {
-                    hook.clearError();
-                    setShowMenu(false);
-                  }}
-                >
-                  Dismiss
-                </button>
-                <button
-                  className="btn btn-primary btn-sm"
-                  style={{ flex: 1 }}
-                  onClick={() => {
-                    hook.clearError();
-                    connect(isLaceAvailable ? 'lace' : '1am');
-                  }}
-                >
-                  Retry
-                </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      hook.clearError();
+                      setShowMenu(false);
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      hook.clearError();
+                      const target = hook.lastAttemptedWallet || (is1amAvailable ? '1am' : 'lace');
+                      connect(target);
+                    }}
+                  >
+                    Retry {hook.lastAttemptedWallet === 'lace' ? 'Lace' : '1AM'}
+                  </button>
+                </div>
+
+                {/* Quick switch options if both are installed */}
+                {is1amAvailable && isLaceAvailable && (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.74rem', justifyContent: 'center', opacity: 0.85 }}
+                    onClick={() => {
+                      hook.clearError();
+                      connect(hook.lastAttemptedWallet === '1am' ? 'lace' : '1am');
+                    }}
+                  >
+                    Connect with {hook.lastAttemptedWallet === '1am' ? 'Lace' : '1AM Wallet'} instead
+                  </button>
+                )}
               </div>
             </div>
           )}
