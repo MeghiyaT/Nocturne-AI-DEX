@@ -33,7 +33,8 @@ export const INDEXER_URL: string =
 
 /** The deployed datasetRegistry contract address. Set via VITE_CONTRACT_ADDRESS. */
 export const CONTRACT_ADDRESS: string =
-  (import.meta.env.VITE_CONTRACT_ADDRESS as string) || '';
+  (import.meta.env.VITE_CONTRACT_ADDRESS as string) ||
+  '7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45';
 
 // ─── Proof Server ─────────────────────────────────────────────────────────────
 
