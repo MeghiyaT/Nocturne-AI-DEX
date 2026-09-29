@@ -188,12 +188,11 @@ VITE_INDEXER_WS_URL=wss://indexer.preprod.midnight.network/api/v4/graphql/ws
 
 | Network | Status | Contract Address | Explorer Link | Notes |
 |---|---|---|---|---|
-| **Preprod** (testnet) | **Active (Latest)** | `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45` | [Preprod Explorer](https://explorer.preprod.midnight.network/contracts/7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45) | Primary target network — active ZK dataset registry & marketplace contract |
-| **Preview** (testnet) | *Alternate Deployment* | `74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f` | [Preview Explorer](https://explorer.preview.midnight.network/contracts/stream/74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f) | Multi-user open provider commitment + on-chain category architecture |
+| **Preprod** (testnet) | **Active** | `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45` | [Preprod Explorer](https://explorer.preprod.midnight.network/contracts/7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45) | Primary target network — active ZK dataset registry & marketplace contract |
 
 > [!NOTE]
 > **Active Preprod Deployment**:
-> The primary Nocturne AI DEX deployment is active on the Midnight Preprod network at `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45`. You can verify transactions, contract interactions, and ledger states directly on the Midnight Preprod block explorer (NightScan). The Preview testnet deployment (`74650cca30e262b2094067196dfcc3f677e6c9974013c39bbcbd919011e8ed3f`) remains documented for alternate network compatibility.
+> Nocturne AI DEX is deployed on the Midnight Preprod network at `7def714414d5008a6567f0a8cff655b40e3fe0c08260f7fc1dc2ab139612fe45`. You can verify transactions, contract interactions, and ledger states directly on the Midnight Preprod block explorer (NightScan).
 
 ![Successful contract deployment to Preprod network](docs/screenshots/deploy.png)
 
