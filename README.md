@@ -5,9 +5,14 @@
 ### Prove your AI dataset is real — without showing anyone the data inside.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-nocturne--ai--dex.vercel.app-7928CA?style=for-the-badge&logo=vercel&logoColor=white)](https://nocturne-ai-dex.vercel.app/)
-[![Watch Demo](https://img.shields.io/badge/Demo_Video-Watch_on_Loom-0080FF?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/06f0afedace648bf866668f6adc52aee)
+[![Watch Demo](https://img.shields.io/badge/Demo_Video-Watch_on_Loom-0080FF?style=for-the-badge&logo=loom&logoColor=white)](https://www.loom.com/share/96091dd818a641109bba3f805879bc65)
+[![Follow on X](https://img.shields.io/badge/X-@NocturneAI__DEX-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/NocturneAI_DEX)
 [![Tests](https://github.com/MeghiyaT/AI-Dataset-DEX/actions/workflows/test.yml/badge.svg)](https://github.com/MeghiyaT/AI-Dataset-DEX/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-amber?style=for-the-badge)](package.json)
+
+<br /><br />
+
+<img src="docs/screenshots/app-overview.png" alt="Nocturne AI DEX Overview" width="95%" />
 
 </div>
 
@@ -25,12 +30,66 @@ Nocturne AI DEX breaks that deadlock. Using the **Midnight blockchain**, a data 
 
 ---
 
-## 🚀 Try it live
+## 🚀 Try it live & Links
 
 | | |
 |---|---|
 | **Live App** | [nocturne-ai-dex.vercel.app](https://nocturne-ai-dex.vercel.app/) |
-| **3-Minute Demo Video** | [Watch on Loom](https://www.loom.com/share/06f0afedace648bf866668f6adc52aee) |
+| **Official X (Twitter)** | [@NocturneAI_DEX](https://x.com/NocturneAI_DEX) |
+| **Full HD Video (Loom)** | [Watch on Loom](https://www.loom.com/share/96091dd818a641109bba3f805879bc65) |
+| **In-Repo Direct Video** | [docs/nocturne-ai-dex-demo.mp4](docs/nocturne-ai-dex-demo.mp4) |
+
+---
+
+## 🎬 Live Demo Walkthrough
+
+Experience Nocturne AI DEX in action — connecting a Midnight wallet, browsing the dataset catalog, listing an AI training set with cryptographic integrity anchors, and verifying authenticity in zero-knowledge:
+
+<p align="center">
+  <video src="docs/nocturne-ai-dex-demo.mp4" controls width="95%">
+    <source src="docs/nocturne-ai-dex-demo.mp4" type="video/mp4" />
+  </video>
+</p>
+
+<p align="center">
+  <a href="https://www.loom.com/share/96091dd818a641109bba3f805879bc65">
+    <img src="docs/screenshots/app-demo.gif" alt="Nocturne AI DEX Live Demo Walkthrough" width="95%" />
+  </a>
+  <br />
+  <sub>🎬 <em>Auto-playing preview above. Click the animation to stream in full HD on <a href="https://www.loom.com/share/96091dd818a641109bba3f805879bc65">Loom</a>, or play the local file directly at <a href="docs/nocturne-ai-dex-demo.mp4"><code>docs/nocturne-ai-dex-demo.mp4</code></a>.</em></sub>
+</p>
+
+---
+
+## 📸 Application Showcase
+
+### 1. Dataset Marketplace & Discovery
+Explore and acquire verified AI datasets anchored to the Midnight blockchain. Filter by pricing model (Paid / Free), search across categories, and inspect cryptographic verification status prior to purchase.
+
+<p align="center">
+  <img src="docs/screenshots/app-marketplace.png" alt="Dataset Marketplace" width="95%" />
+</p>
+
+### 2. Dataset Listing & Integrity Registration
+List AI datasets by setting licensing terms (e.g., Apache-2.0), categories, and pricing in tNIGHT (or free). Raw files are hashed locally on your machine and anchored on Midnight without exposing private records.
+
+<p align="center">
+  <img src="docs/screenshots/app-list-dataset.png" alt="List a Dataset" width="95%" />
+</p>
+
+### 3. Zero-Knowledge Dataset Verifier
+Verify dataset authenticity against on-chain Midnight zero-knowledge anchors in real time. The verifier validates cryptographic commitments without revealing or transmitting sensitive dataset contents.
+
+<p align="center">
+  <img src="docs/screenshots/app-verifier.png" alt="Zero-Knowledge Dataset Verifier" width="95%" />
+</p>
+
+### 4. Researcher Dashboard & Profile
+Inspect connected Midnight wallet details, manage active listings, review acquired datasets, and track accumulated tNIGHT revenue in real time.
+
+<p align="center">
+  <img src="docs/screenshots/app-profile.png" alt="Researcher Dashboard and Profile" width="95%" />
+</p>
 
 ---
 
@@ -39,6 +98,7 @@ Nocturne AI DEX breaks that deadlock. Using the **Midnight blockchain**, a data 
 - 📝 **Register a dataset** — list your AI dataset with a name, size, and license. A tamper-proof fingerprint of your file is recorded on the blockchain. Your actual data never leaves your computer.
 - 🔍 **Verify a dataset** — as a buyer, request proof that a listed dataset is genuine. The provider's file is checked against the on-chain fingerprint. Pass = the data is real.
 - 📊 **Browse the marketplace** — explore all publicly registered datasets, filter by license, and check how many times each one has been independently verified.
+- 💼 **Manage researcher portfolio** — track acquired datasets, monitor published listings, and manage revenue from your Midnight wallet.
 
 ---
 
@@ -274,6 +334,14 @@ Workflow file: [`.github/workflows/test.yml`](.github/workflows/test.yml)
 - **Raw dataset files** are never transmitted — they are processed in memory on your local machine only
 - **The proof server** runs locally in Docker; private data is passed to it briefly to generate the proof, then immediately discarded
 - All sensitive state files are excluded from git by `.gitignore`
+
+---
+
+## Community & Updates
+
+Follow project announcements, feature releases, and development updates:
+- **X (Twitter)**: [@NocturneAI_DEX](https://x.com/NocturneAI_DEX)
+- **Live App**: [nocturne-ai-dex.vercel.app](https://nocturne-ai-dex.vercel.app/)
 
 ---
 
